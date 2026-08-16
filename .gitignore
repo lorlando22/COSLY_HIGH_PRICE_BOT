@@ -1,7 +1,7 @@
 # Secretos: appsettings.json lleva el token del bot de Telegram.
 # La plantilla sin credenciales (appsettings.example.json) sí se versiona.
 appsettings.json
-!appsettings.example.json
+!appsettings.ci.json
 .env
 .env.*
 *.key

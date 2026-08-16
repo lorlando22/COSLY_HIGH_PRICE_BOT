@@ -27,10 +27,11 @@ jobs:
         with:
           global-json-file: global.json
 
-      # appsettings.json no está en el repo (lleva el token). En CI se usa la plantilla
-      # y los datos secretos entran por variables de entorno en el paso siguiente.
+      # appsettings.json no está en el repo (lleva el token). appsettings.ci.json es la
+      # configuración que gobierna estas corridas; los secretos entran por variables de
+      # entorno en el paso siguiente.
       - name: Preparar configuración
-        run: cp src/CoslyHighPriceBot/appsettings.example.json src/CoslyHighPriceBot/appsettings.json
+        run: cp src/CoslyHighPriceBot/appsettings.ci.json src/CoslyHighPriceBot/appsettings.json
 
       - name: Buscar pumps y avisar
         env:
@@ -40,7 +41,18 @@ jobs:
           State__NotifiedSymbolsFile: ${{ github.workspace }}/state/notified-symbols.json
         run: dotnet run --project src/CoslyHighPriceBot -c Release
 
-      # Si el paso anterior falla no se llega acá, así que un error de Telegram
+      # always() para que el log quede disponible sobre todo cuando la corrida falla,
+      # que es justo cuando hace falta leerlo.
+      - name: Publicar el log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-${{ github.run_number }}
+          path: src/CoslyHighPriceBot/bin/Release/**/Logs/*.log
+          if-no-files-found: error
+          retention-days: 90
+
+      # Si la ejecución falla no se llega acá, así que un error de Telegram
       # no deja marcada como avisada una moneda que nunca se envió.
       - name: Guardar símbolos avisados
         run: |

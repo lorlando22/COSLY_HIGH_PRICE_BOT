@@ -87,7 +87,11 @@ Todo valor ajustable vive en `src/CoslyHighPriceBot/appsettings.json`:
 | `Telegram:ChatId` | Chat destino. Privado = ID positivo; grupo/supergrupo = **negativo**. |
 
 `appsettings.json` está en `.gitignore` porque contiene el token.
-`appsettings.example.json` es la plantilla sin credenciales y sí se versiona.
+
+`appsettings.ci.json` es la copia sin credenciales que **sí se versiona**: sirve de
+plantilla para una instalación nueva y, sobre todo, es la configuración que gobierna las
+corridas en GitHub Actions (el workflow la copia a `appsettings.json` antes de ejecutar).
+Para cambiar el umbral en la nube hay que editar ese archivo y commitear.
 
 Cualquier clave se puede pisar con una **variable de entorno** usando doble guión bajo
 como separador: `Telegram__BotToken`, `Filter__MinChangePercent`,
@@ -105,6 +109,12 @@ Requiere dos secrets en el repo (Settings → Secrets and variables → Actions)
 El estado vive en `state/notified-symbols.json`, **versionado a propósito**: es la única
 forma de que la memoria del bot sobreviva entre corridas, porque el runner es efímero.
 El workflow lo commitea al final de cada ejecución, y sólo si el envío salió bien.
+
+La carpeta `Logs/` del runner se pierde al terminar, así que el workflow sube el archivo
+del día como **artifact** (`log-<número de corrida>`, 90 días de retención). Se descarga
+desde la página de la corrida. El mismo contenido está en la salida del paso
+"Buscar pumps y avisar". El artifact se sube con `always()`: interesa sobre todo cuando
+la corrida falla.
 
 Es gratis **si el repo es público**: cada corrida gasta un mínimo de 1 minuto facturable
 y 2.880 corridas al mes superan los 2.000 minutos del plan gratuito para repos privados.
