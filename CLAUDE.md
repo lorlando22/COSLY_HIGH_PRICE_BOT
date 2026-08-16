@@ -138,6 +138,10 @@ Sin DI ni Generic Host: es un programa de un solo disparo y no lo justifica.
 
 ## Detalles a tener en cuenta
 
+- **`data-api.binance.vision`, no `api.binance.com`**: el dominio principal responde
+  `451 Unavailable For Legal Reasons` desde IPs de datacenters de EE.UU., que es donde
+  corren los runners de GitHub Actions. `data-api.binance.vision` es el endpoint público
+  de datos de mercado (sólo lectura, sin API key) y sirve los tres endpoints que usamos.
 - Binance devuelve **todos los campos numéricos como string**; el parseo usa
   `CultureInfo.InvariantCulture` (ver `CoinFilter`).
 - **Pares suspendidos**: los símbolos en estado `BREAK` o `HALT` conservan sus
