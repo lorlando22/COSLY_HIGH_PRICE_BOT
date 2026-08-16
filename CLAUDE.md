@@ -6,6 +6,18 @@ defecto) y envía un único aviso formateado a Telegram.
 
 Si ninguna moneda supera el umbral, **no envía nada** — sólo lo informa por consola.
 
+## Log
+
+Todo lo que sale por consola se escribe además en `Logs\pumps-<yyyy-MM-dd>.log`, junto
+al ejecutable: un archivo por día, con `yyyy-MM-dd HH:mm:ss [NIVEL] mensaje` por línea.
+
+Eventos que quedan registrados: inicio y fin de la ejecución (con el código de salida),
+cada símbolo avisado por Telegram, cada símbolo que baja del umbral y se borra del JSON,
+los pares descartados por estar suspendidos, y cualquier excepción.
+
+Si la carpeta no se puede escribir, el logueo a archivo se apaga y el programa sigue por
+consola: no poder loguear nunca puede impedir que llegue el aviso del pump.
+
 ## Aviso único por símbolo
 
 Cada símbolo avisado se guarda en `notified-symbols.json` (un array JSON, junto al
@@ -107,7 +119,7 @@ src/CoslyHighPriceBot/
    ├─ MessageFormatter.cs        texto HTML del mensaje, partido si supera 4096 chars
    ├─ TelegramNotifier.cs        POST a sendMessage
    ├─ NotifiedSymbolStore.cs     lee/escribe notified-symbols.json
-   └─ ConsoleLog.cs              salida por consola
+   └─ AppLog.cs                  consola + archivo diario en Logs/
 ```
 
 Llamadas a Binance por ejecución: **1** si ninguna moneda supera el umbral (el caso

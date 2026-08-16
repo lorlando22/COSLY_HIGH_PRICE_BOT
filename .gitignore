@@ -26,6 +26,7 @@ publish/
 Thumbs.db
 
 # Logs
+Logs/
 *.log
 
 # Config local de Claude Code (por maquina)

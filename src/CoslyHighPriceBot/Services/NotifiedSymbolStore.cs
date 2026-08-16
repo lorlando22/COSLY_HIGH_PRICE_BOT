@@ -26,7 +26,7 @@ internal sealed class NotifiedSymbolStore(string filePath)
         {
             // Un archivo corrupto no puede dejar el bot inutilizable: se arranca de cero.
             // El costo es un posible aviso repetido, mucho menor que no avisar nunca más.
-            ConsoleLog.Warn($"No se pudo leer {Path.GetFileName(filePath)} ({ex.Message}). Se ignora y se reescribe.");
+            AppLog.Warn($"No se pudo leer {Path.GetFileName(filePath)} ({ex.Message}). Se ignora y se reescribe.");
             return new HashSet<string>(StringComparer.Ordinal);
         }
     }

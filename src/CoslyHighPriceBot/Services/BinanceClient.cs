@@ -62,7 +62,7 @@ internal sealed class BinanceClient(HttpClient http, BinanceOptions options)
             // Se avisa por consola porque son dos situaciones distintas y sin traza no hay forma de distinguirlas.
             var missing = result.Keys.Where(s => !bySymbol.ContainsKey(s)).ToList();
             if (missing.Count > 0)
-                ConsoleLog.Warn($"Binance no devolvió datos de {window} para: {string.Join(", ", missing)}. Se muestran como 0%.");
+                AppLog.Warn($"Binance no devolvió datos de {window} para: {string.Join(", ", missing)}. Se muestran como 0%.");
 
             foreach (var (symbol, changes) in result)
                 changes.Add(new WindowChange(window, bySymbol.GetValueOrDefault(symbol)));
@@ -73,12 +73,27 @@ internal sealed class BinanceClient(HttpClient http, BinanceOptions options)
 
     private async Task<T?> GetJsonAsync<T>(string url, CancellationToken cancellationToken)
     {
-        using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        try
+        {
+            using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            response.EnsureSuccessStatusCode();
 
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        return await JsonSerializer.DeserializeAsync<T>(stream, cancellationToken: cancellationToken);
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            return await JsonSerializer.DeserializeAsync<T>(stream, cancellationToken: cancellationToken);
+        }
+        // El timeout de HttpClient también llega como TaskCanceledException, pero un Ctrl+C
+        // tiene que seguir de largo para que se reporte como cancelación y no como error.
+        catch (Exception ex) when (ex is HttpRequestException or JsonException
+                                   || (ex is TaskCanceledException && !cancellationToken.IsCancellationRequested))
+        {
+            // Se agrega el contexto para que el log diga que el problema fue con Binance
+            // y no una excepción suelta sin origen.
+            throw new InvalidOperationException($"Error consultando Binance ({SafeUrl(url)}): {ex.Message}", ex);
+        }
     }
+
+    /// <summary>Recorta la query string, que puede traer la lista completa de símbolos.</summary>
+    private static string SafeUrl(string url) => url.Split('?')[0];
 
     /// <summary>Binance espera el parámetro symbols como un array JSON dentro de la query string.</summary>
     private static string EncodeSymbols(IReadOnlyCollection<string> symbols) =>
