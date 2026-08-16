@@ -1,0 +1,55 @@
+name: Aviso de pumps
+
+on:
+  schedule:
+    # Cada 15 minutos. GitHub puede retrasar los cron programados bajo carga:
+    # el intervalo real suele ser mayor. Para pumps de 24h no es un problema.
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+# Necesario para que el workflow pueda commitear el estado de vuelta al repo.
+permissions:
+  contents: write
+
+# Dos corridas simultáneas se pisarían el push del estado.
+concurrency:
+  group: pump-alert
+  cancel-in-progress: false
+
+jobs:
+  avisar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      # appsettings.json no está en el repo (lleva el token). En CI se usa la plantilla
+      # y los datos secretos entran por variables de entorno en el paso siguiente.
+      - name: Preparar configuración
+        run: cp src/CoslyHighPriceBot/appsettings.example.json src/CoslyHighPriceBot/appsettings.json
+
+      - name: Buscar pumps y avisar
+        env:
+          Telegram__BotToken: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          Telegram__ChatId: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # Ruta absoluta dentro del repo para que el estado quede versionado.
+          State__NotifiedSymbolsFile: ${{ github.workspace }}/state/notified-symbols.json
+        run: dotnet run --project src/CoslyHighPriceBot -c Release
+
+      # Si el paso anterior falla no se llega acá, así que un error de Telegram
+      # no deja marcada como avisada una moneda que nunca se envió.
+      - name: Guardar símbolos avisados
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add state/notified-symbols.json
+          if git diff --staged --quiet; then
+            echo "Sin cambios en el estado."
+          else
+            git commit -m "Actualiza símbolos avisados [skip ci]"
+            git push
+          fi
