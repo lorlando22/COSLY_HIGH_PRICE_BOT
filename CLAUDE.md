@@ -18,6 +18,11 @@ los pares descartados por estar suspendidos, y cualquier excepción.
 Si la carpeta no se puede escribir, el logueo a archivo se apaga y el programa sigue por
 consola: no poder loguear nunca puede impedir que llegue el aviso del pump.
 
+Al arrancar se borran los logs más viejos que `Logging:RetentionDays` (30 por defecto,
+`0` conserva todos). La antigüedad sale de **la fecha del nombre del archivo**, no de su
+fecha de modificación, para que copiar la carpeta no los rejuvenezca. Los archivos que no
+siguen el patrón `pumps-<yyyy-MM-dd>.log` no se tocan.
+
 ## Aviso único por símbolo
 
 Cada símbolo avisado se guarda en `notified-symbols.json` (un array JSON, junto al
@@ -76,6 +81,7 @@ Todo valor ajustable vive en `src/CoslyHighPriceBot/appsettings.json`:
 | `Binance:OnlyTradingSymbols` | Descarta los pares suspendidos (ver más abajo). |
 | `Filter:MinChangePercent` | Suba mínima en 24h, en %, para entrar en el aviso. |
 | `State:NotifiedSymbolsFile` | Archivo con los símbolos ya avisados. Relativo = junto al ejecutable. |
+| `Logging:RetentionDays` | Días de logs a conservar. `0` = no borrar ninguno. |
 | `Telegram:ApiBaseUrl` | Base de la Bot API. |
 | `Telegram:BotToken` | Token del bot. **Secreto.** |
 | `Telegram:ChatId` | Chat destino. Privado = ID positivo; grupo/supergrupo = **negativo**. |

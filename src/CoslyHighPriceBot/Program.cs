@@ -52,6 +52,8 @@ async Task<int> RunAsync()
         return 1;
     }
 
+    AppLog.DeleteOldFiles(settings.Logging.RetentionDays);
+
     var store = new NotifiedSymbolStore(ResolvePath(settings.State.NotifiedSymbolsFile));
     var alreadyNotified = store.Load();
     AppLog.Info($"{alreadyNotified.Count} símbolo(s) avisados en corridas anteriores ({Path.GetFileName(store.FilePath)}).");

@@ -9,6 +9,7 @@ internal sealed class AppSettings
     public FilterOptions Filter { get; set; } = new();
     public TelegramOptions Telegram { get; set; } = new();
     public StateOptions State { get; set; } = new();
+    public LoggingOptions Logging { get; set; } = new();
 
     /// <summary>Devuelve la lista de problemas de configuración. Vacía = todo en orden.</summary>
     public IReadOnlyList<string> Validate()
@@ -48,6 +49,9 @@ internal sealed class AppSettings
 
         if (string.IsNullOrWhiteSpace(State.NotifiedSymbolsFile))
             errors.Add("State:NotifiedSymbolsFile no puede estar vacío.");
+
+        if (Logging.RetentionDays < 0)
+            errors.Add("Logging:RetentionDays no puede ser negativo (0 = conservar todos los logs).");
 
         return errors;
     }
@@ -94,6 +98,12 @@ internal sealed class StateOptions
     /// se resuelve contra la carpeta del ejecutable, no contra el directorio de trabajo.
     /// </summary>
     public string NotifiedSymbolsFile { get; set; } = "notified-symbols.json";
+}
+
+internal sealed class LoggingOptions
+{
+    /// <summary>Días de logs que se conservan en la carpeta Logs. Con 0 no se borra ninguno.</summary>
+    public int RetentionDays { get; set; } = 30;
 }
 
 internal sealed class TelegramOptions

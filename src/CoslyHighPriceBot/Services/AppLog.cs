@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace CoslyHighPriceBot.Services;
 
 /// <summary>
@@ -6,6 +8,9 @@ namespace CoslyHighPriceBot.Services;
 /// </summary>
 internal static class AppLog
 {
+    private const string FilePrefix = "pumps-";
+    private const string DateFormat = "yyyy-MM-dd";
+
     private static readonly string Folder = Path.Combine(AppContext.BaseDirectory, "Logs");
 
     /// <summary>Se apaga solo si falla la escritura, para no repetir el mismo error en cada línea.</summary>
@@ -16,6 +21,45 @@ internal static class AppLog
     public static void Warn(string message) => Write("WARN", message, Console.Out);
 
     public static void Error(string message) => Write("ERROR", message, Console.Error);
+
+    /// <summary>
+    /// Borra los logs con más días de antigüedad que <paramref name="retentionDays"/>.
+    /// La antigüedad sale de la fecha del nombre del archivo, no de su fecha de
+    /// modificación: copiar la carpeta no debería rejuvenecer los logs.
+    /// Con 0 no se borra nada.
+    /// </summary>
+    public static void DeleteOldFiles(int retentionDays)
+    {
+        if (retentionDays <= 0 || !Directory.Exists(Folder))
+            return;
+
+        var cutoff = DateTime.Today.AddDays(-retentionDays);
+        var deleted = 0;
+
+        foreach (var file in Directory.EnumerateFiles(Folder, $"{FilePrefix}*.log"))
+        {
+            var datePart = Path.GetFileNameWithoutExtension(file)[FilePrefix.Length..];
+
+            if (!DateTime.TryParseExact(datePart, DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+                continue;
+
+            if (date >= cutoff)
+                continue;
+
+            try
+            {
+                File.Delete(file);
+                deleted++;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Warn($"No se pudo borrar el log {Path.GetFileName(file)}: {ex.Message}");
+            }
+        }
+
+        if (deleted > 0)
+            Info($"{deleted} log(s) de más de {retentionDays} días eliminados.");
+    }
 
     private static void Write(string level, string message, TextWriter console)
     {
@@ -30,7 +74,7 @@ internal static class AppLog
         try
         {
             Directory.CreateDirectory(Folder);
-            File.AppendAllText(Path.Combine(Folder, $"pumps-{now:yyyy-MM-dd}.log"), line + Environment.NewLine);
+            File.AppendAllText(Path.Combine(Folder, $"{FilePrefix}{now.ToString(DateFormat)}.log"), line + Environment.NewLine);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
