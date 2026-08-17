@@ -37,8 +37,9 @@ jobs:
         env:
           Telegram__BotToken: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           Telegram__ChatId: ${{ secrets.TELEGRAM_CHAT_ID }}
-          # Absolute path inside the repo so the state stays version-controlled.
+          # Absolute paths inside the repo so the state stays version-controlled.
           State__NotifiedSymbolsFile: ${{ github.workspace }}/state/notified-symbols.json
+          State__NotifiedStocksFile: ${{ github.workspace }}/state/notified-stocks.json
         run: dotnet run --project src/CoslyHighPriceBot -c Release
 
       # always() so the log stays available especially when the run fails,
@@ -58,7 +59,7 @@ jobs:
         run: |
           git config user.name  'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git add state/notified-symbols.json
+          git add state/notified-symbols.json state/notified-stocks.json
           if git diff --staged --quiet; then
             echo "No changes to the state."
           else

@@ -12,42 +12,43 @@ internal static class MessageFormatter
     /// </summary>
     private const int MaxBodyLength = 3600;
 
-    public static IReadOnlyList<string> Build(IReadOnlyList<Coin> coins, string quoteAsset, decimal minChangePercent)
+    /// <summary>
+    /// Crypto and tokenized stocks get their own message, each with its own title and
+    /// threshold, so the 4096-character limit applies to each one separately.
+    /// </summary>
+    public static IReadOnlyList<string> Build(IReadOnlyList<Coin> coins, decimal minChangePercent)
     {
         var bodies = Chunk(coins.Select((coin, index) => BuildBlock(coin, index + 1)));
+        var title = Title(coins[0].Kind);
 
         return bodies
             .Select((body, index) =>
             {
                 var part = bodies.Count > 1 ? $" · part {index + 1}/{bodies.Count}" : "";
-                return BuildHeader(quoteAsset, minChangePercent, part) + "\n\n" + body;
+                return BuildHeader(title, minChangePercent, part) + "\n\n" + body;
             })
             .ToList();
     }
 
-    private static string BuildHeader(string quoteAsset, decimal minChangePercent, string part) =>
-        $"🚀 <b>{Escape(quoteAsset)} Pumps — last 24h</b>\n" +
+    private static string Title(CoinKind kind) => kind switch
+    {
+        CoinKind.TokenizedStock => "📈 <b>Tokenized Stocks — last 24h</b>",
+        _ => "🚀 <b>Crypto Pumps — last 24h</b>"
+    };
+
+    private static string BuildHeader(string title, decimal minChangePercent, string part) =>
+        $"{title}\n" +
         $"<i>{DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC · threshold +{minChangePercent:0.##}%{part}</i>";
 
-    private static string BuildBlock(Coin coin, int position)
-    {
-        var block = new StringBuilder()
-            .Append($"<b>{position}. {Escape(coin.Symbol)}</b> — <b>{FormatPercent(coin.ChangePercent)}</b> (24h)\n");
-
-        if (coin.WindowChanges.Count > 0)
-        {
-            var windows = coin.WindowChanges.Select(w => $"{Escape(w.Window)}: {FormatPercent(w.ChangePercent)}");
-            block.Append($"⏱ {string.Join("   ·   ", windows)}\n");
-        }
-
-        return block
+    private static string BuildBlock(Coin coin, int position) =>
+        new StringBuilder()
+            .Append($"<b>{position}. {Escape(coin.Symbol)}</b> — <b>{FormatPercent(coin.ChangePercent)}</b> (24h)\n")
             .Append($"💵 Price: {FormatPrice(coin.LastPrice)}\n")
             .Append($"📊 Open: {FormatPrice(coin.OpenPrice)}\n")
             .Append($"🔺 High: {FormatPrice(coin.HighPrice)}   🔻 Low: {FormatPrice(coin.LowPrice)}\n")
             .Append($"💰 24h Volume: {FormatVolume(coin.QuoteVolume)} {Escape(coin.QuoteAsset)}\n")
             .Append($"🔁 Trades: {coin.TradeCount:N0}\n\n")
             .ToString();
-    }
 
     private static string FormatPercent(decimal value) => value.ToString("+0.00;-0.00") + "%";
 

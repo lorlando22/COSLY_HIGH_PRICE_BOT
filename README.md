@@ -1,13 +1,19 @@
 # COSLY High Price Bot
 
 A .NET 9 console app that watches Binance for pumps: it fetches the 24-hour ticker,
-keeps the `*USDT` pairs that gained more than a configurable threshold (100% by
-default), and sends a single formatted alert to Telegram — with 4h/1h momentum,
-price, volume, and trade count for each coin.
+keeps the `*USDT` pairs that gained more than a configurable threshold, and sends a
+formatted alert to Telegram with price, open, high/low, volume and trade count.
 
-If nothing crosses the threshold, **no message is sent** — the run just logs that
-nothing matched and exits cleanly. Coins already notified aren't repeated until they
-drop back below the threshold first.
+It tracks **two kinds of asset separately**, because they don't move on the same scale:
+
+| Kind | Default threshold | Message | State file |
+| --- | --- | --- | --- |
+| Crypto | +100% in 24h | 🚀 Crypto Pumps | `notified-symbols.json` |
+| Tokenized stocks | +20% in 24h | 📈 Tokenized Stocks | `notified-stocks.json` |
+
+If nothing crosses its threshold, **no message is sent** — the run just logs that
+nothing matched and exits cleanly. Symbols already notified aren't repeated until they
+drop back below their threshold first.
 
 Runs as a one-shot process, so it fits equally well in a Windows Task Scheduler job
 or a GitHub Actions cron — no server, no database, no background process to keep alive.
@@ -15,13 +21,15 @@ or a GitHub Actions cron — no server, no database, no background process to ke
 ## Features
 
 - Polls Binance's public 24h ticker and filters by quote asset and minimum % gain
-- Adds short-window momentum (e.g. 4h, 1h) for each matching coin
+- Separates tokenized equities (`AAPLBUSDT`, `TSLABUSDT`, `SNDKBUSDT`) from crypto and
+  applies a much lower threshold to them, since a +15% day for a stock is exceptional
 - Skips symbols with suspended trading (`BREAK`/`HALT`), which would otherwise show
   up as huge, untradeable "pumps"
-- Sends a single alert per symbol — no repeats while it stays above the threshold
+- Sends a single alert per symbol — no repeats while it stays above its threshold
 - Daily rotating log file with automatic retention cleanup
 - Everything configurable via `appsettings.json` or environment variables (for secrets)
 - Ready-to-use GitHub Actions workflow to run every 15 minutes for free
+- **Two Binance calls per run at most**, and usually just one
 
 ## Quick start
 
@@ -36,7 +44,7 @@ Requires the [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0).
    ```
 
 It runs once, alerts if there's anything to alert about, and exits. Exit code `0` on
-success (whether or not any coin matched), `1` on error.
+success (whether or not anything matched), `1` on error.
 
 ### Getting a Telegram bot token and chat ID
 
@@ -47,6 +55,39 @@ success (whether or not any coin matched), `1` on error.
 3. For a group: add the bot to the group, send `/start@<bot>` there, and read
    `message.chat.id` from the same URL. Group IDs are **negative**.
 
+## How tokenized stocks are detected
+
+Binance's spot market lists tokenized equities with a `B` suffix on the base asset:
+`AAPLB`, `TSLAB`, `SNDKB`. Spot's `exchangeInfo` gives **no field** that identifies
+them — every symbol looks alike.
+
+Matching "base asset ends in `B`" is tempting and **wrong**: it also catches
+**BNB, SHIB, ARB, DGB, TRB, CKB, BB, YB and QNTB**.
+
+So the bot uses a version-controlled catalog,
+[`src/CoslyHighPriceBot/tokenized-stocks.json`](src/CoslyHighPriceBot/tokenized-stocks.json),
+listing the base assets that really are tokenized stocks. A newly listed stock that
+isn't in the catalog is simply treated as crypto — it won't alert until +100%, but it
+never produces a wrong alert.
+
+### Regenerating the catalog
+
+The authoritative source is Binance **futures**, where the classification is explicit
+(`contractType: "TRADIFI_PERPETUAL"`). This PowerShell snippet cross-references it
+against spot and rewrites the catalog:
+
+```powershell
+$f = Invoke-RestMethod "https://fapi.binance.com/fapi/v1/exchangeInfo"
+$tradfi = ($f.symbols | Where-Object { $_.contractType -eq 'TRADIFI_PERPETUAL' }).baseAsset | Sort-Object -Unique
+$r = Invoke-RestMethod "https://data-api.binance.vision/api/v3/exchangeInfo"
+$list = ($r.symbols | Where-Object { $_.quoteAsset -eq 'USDT' -and $_.baseAsset.EndsWith('B') -and $tradfi -contains $_.baseAsset.Substring(0, $_.baseAsset.Length - 1) }).baseAsset | Sort-Object -Unique
+$list | ConvertTo-Json | Set-Content -Encoding utf8 src/CoslyHighPriceBot/tokenized-stocks.json
+```
+
+> Run it from an unrestricted IP. `fapi.binance.com` returns `451` from US datacenters,
+> including GitHub Actions runners — which is exactly why the catalog is committed
+> rather than fetched at runtime.
+
 ## Configuration
 
 Every adjustable value lives in `appsettings.json`:
@@ -54,20 +95,21 @@ Every adjustable value lives in `appsettings.json`:
 | Key | Description |
 | --- | --- |
 | `Binance:Ticker24hUrl` | 24h ticker endpoint. With no query string it returns every symbol. |
-| `Binance:RollingTickerUrl` | Rolling-window ticker; source of the 4h/1h percentages. |
 | `Binance:ExchangeInfoUrl` | Each symbol's status (TRADING / BREAK / HALT). |
 | `Binance:QuoteAsset` | Quote asset to filter by (symbol suffix), e.g. `USDT`. |
-| `Binance:ExtraWindows` | Short windows to show besides 24h, in order. E.g.: `["4h", "1h"]`. |
 | `Binance:OnlyTradingSymbols` | Discards suspended pairs (recommended: `true`). |
-| `Filter:MinChangePercent` | Minimum 24h gain, in %, to trigger an alert. |
-| `State:NotifiedSymbolsFile` | File that tracks already-notified symbols. |
+| `Filter:MinChangePercent` | Minimum 24h gain, in %, for crypto. |
+| `Filter:StockMinChangePercent` | Minimum 24h gain, in %, for tokenized stocks. |
+| `State:NotifiedSymbolsFile` | Tracks already-notified crypto. |
+| `State:NotifiedStocksFile` | Tracks already-notified tokenized stocks. |
+| `State:TokenizedStocksFile` | Read-only catalog of tokenized-stock base assets. |
 | `Logging:RetentionDays` | Days of logs to keep. `0` = keep them all. |
 | `Telegram:ApiBaseUrl` | Bot API base URL. |
 | `Telegram:BotToken` | Your bot's token. **Secret — never commit this.** |
 | `Telegram:ChatId` | Destination chat. Private = positive ID; group = **negative**. |
 
 Any key can be overridden with an environment variable using a double underscore as
-the separator, e.g. `Telegram__BotToken`, `Filter__MinChangePercent`. This is how
+the separator, e.g. `Telegram__BotToken`, `Filter__StockMinChangePercent`. This is how
 secrets are passed in the cloud without writing them to a file.
 
 `appsettings.json` (with your real token) is gitignored. `appsettings.ci.json` is a
@@ -85,15 +127,16 @@ runs the bot every 15 minutes without needing any machine to stay on.
 3. Trigger it once manually from the Actions tab to confirm it works, or just wait
    for the next scheduled run.
 
-The bot's memory (`state/notified-symbols.json`) is committed back to the repo after
-each run, since GitHub Actions runners are ephemeral and don't persist disk state
-between runs on their own. Each run's log is also uploaded as a downloadable artifact
-(90-day retention), particularly useful when a run fails.
+The bot's memory (`state/notified-symbols.json` and `state/notified-stocks.json`) is
+committed back to the repo after each run, since GitHub Actions runners are ephemeral
+and don't persist disk state between runs on their own. Each run's log is also uploaded
+as a downloadable artifact (90-day retention), particularly useful when a run fails.
 
 > **Why `data-api.binance.vision` and not `api.binance.com`?** The main Binance
 > domain returns `451 Unavailable For Legal Reasons` from US datacenter IPs — which
 > is where GitHub Actions runners live. `data-api.binance.vision` is Binance's public,
-> read-only market-data mirror and works fine from CI.
+> read-only market-data mirror and works fine from CI. Note there is no equivalent
+> host for the futures API, so futures data can't be used from GitHub Actions at all.
 
 ## Deploying with Windows Task Scheduler
 
@@ -110,15 +153,16 @@ is always read from the executable's own folder.
 
 ```
 src/CoslyHighPriceBot/
-├─ Program.cs                    orchestration: config → fetch → filter → alert
+├─ Program.cs                    orchestration: config → fetch → filter → alert per kind
 ├─ Configuration/AppSettings.cs  appsettings.json POCOs + validation
-├─ Models/Ticker24h.cs           Binance DTOs (all strings) + Coin/WindowChange records
+├─ Models/Ticker24h.cs           Binance DTOs (all strings) + CoinKind and Coin
+├─ tokenized-stocks.json         catalog of tokenized-stock base assets
 └─ Services/
-   ├─ BinanceClient.cs           24h ticker, rolling windows, and symbol status
-   ├─ CoinFilter.cs              filtering by quote asset and %, sorted descending
+   ├─ BinanceClient.cs           24h ticker and symbol status
+   ├─ CoinFilter.cs              classifies by kind and applies each kind's threshold
    ├─ MessageFormatter.cs        HTML message text, split if it exceeds 4096 chars
    ├─ TelegramNotifier.cs        POST to sendMessage
-   ├─ NotifiedSymbolStore.cs     reads/writes notified-symbols.json
+   ├─ SymbolSetStore.cs          reads/writes the three JSON symbol files
    └─ AppLog.cs                  console + daily file in Logs/
 ```
 
@@ -132,8 +176,6 @@ need either. `global.json` pins the SDK version.
 - Suspended pairs (`BREAK`/`HALT`) keep their 24h stats frozen, so they can look like
   enormous pumps that are actually untradeable — that's what `OnlyTradingSymbols`
   guards against.
-- If Binance omits a symbol from a rolling-window response, it's shown as `0%` and
-  logged as a warning, since that's otherwise indistinguishable from "didn't move".
 
 ## License
 

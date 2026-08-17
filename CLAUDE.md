@@ -1,10 +1,46 @@
 # COSLY_HIGH_PRICE_BOT
 
 .NET 9 console app that detects "pumps" on Binance: it queries the 24-hour ticker,
-keeps the `*USDT` pairs that rose more than a configurable threshold (100% by
-default), and sends a single formatted alert to Telegram.
+keeps the `*USDT` pairs that rose more than a configurable threshold, and sends a
+formatted alert to Telegram.
 
-If no coin exceeds the threshold, **nothing is sent** — it's just logged to the console.
+It handles **two kinds of asset separately**, each with its own threshold, its own
+Telegram message and its own already-notified file:
+
+| Kind | Threshold | State file |
+| --- | --- | --- |
+| Crypto | `Filter:MinChangePercent` (100% default) | `notified-symbols.json` |
+| Tokenized stocks | `Filter:StockMinChangePercent` (20% default) | `notified-stocks.json` |
+
+If nothing exceeds its threshold, **nothing is sent** — it's just logged to the console.
+
+## Tokenized stocks
+
+Binance's spot market lists tokenized equities as `<TICKER>B` + quote asset:
+`AAPLBUSDT`, `TSLABUSDT`, `SNDKBUSDT`. They move far less than crypto — a +15% day is
+exceptional — so a 100% threshold would never fire for them.
+
+**Spot's `exchangeInfo` has no field that identifies them.** Every symbol looks the
+same; only the trading permission groups differ, and none of them separates the two
+kinds. So the classification comes from a version-controlled catalog:
+`src/CoslyHighPriceBot/tokenized-stocks.json`, a JSON array of base assets
+(`["AAPLB","TSLAB","SNDKB", ...]`, 66 entries at the time of writing).
+
+**Don't try to shortcut this with a name pattern.** Matching "base asset ends in `B`"
+looks tempting but misclassifies **BNB, SHIB, ARB, DGB, TRB, CKB, BB, YB and QNTB** as
+stocks. The catalog exists precisely to avoid that.
+
+Benign failure mode: a newly listed tokenized stock that isn't in the catalog is treated
+as crypto, so it just won't alert until +100%. It never produces a wrong alert.
+
+### Regenerating the catalog
+
+The authoritative source is Binance **futures**, where the classification is explicit
+(`contractType: "TRADIFI_PERPETUAL"`, `underlyingType: EQUITY | HK_EQUITY | KR_EQUITY |
+CN_EQUITY | COMMODITY`). Cross-reference those base assets against spot's `B` suffix.
+See the README for the PowerShell one-liner.
+
+**It has to be run from an unrestricted IP** — see the note about 451 below.
 
 ## Log
 
@@ -13,11 +49,12 @@ next to the executable: one file per day, one `yyyy-MM-dd HH:mm:ss [LEVEL] messa
 line per entry.
 
 Events that get logged: the start and end of each run (with its exit code), every
-symbol notified via Telegram, every symbol that drops below the threshold and is
-removed from the JSON, pairs discarded for being suspended, and any exception.
+symbol notified via Telegram (saying whether it's crypto or a tokenized stock), every
+symbol that drops below its threshold and is removed from its JSON, pairs discarded for
+being suspended, and any exception.
 
-If the folder can't be written to, file logging turns itself off and the program
-keeps going on the console: failing to log can never be allowed to block a pump alert.
+If the folder can't be written to, file logging turns itself off and the program keeps
+going on the console: failing to log can never be allowed to block a pump alert.
 
 On startup, logs older than `Logging:RetentionDays` are deleted (30 by default, `0`
 keeps them all). Age comes from **the date in the file name**, not its modification
@@ -26,21 +63,23 @@ the `pumps-<yyyy-MM-dd>.log` pattern are left untouched.
 
 ## One alert per symbol
 
-Every notified symbol is saved to `notified-symbols.json` (a JSON array, next to the
-executable) and won't be notified again while it stays above the threshold. Once it
-drops, it's removed from the file, so if it pumps again later it gets notified again.
+Every notified symbol is saved to its kind's state file and won't be notified again
+while it stays above its threshold. Once it drops, it's removed from the file, so if it
+pumps again later it gets notified again.
 
-Each run's cycle:
+Each kind runs this cycle independently:
 
 1. Read the file (if it doesn't exist, start with an empty list).
-2. Compute the coins that are above the threshold today and tradable.
+2. Compute the symbols of that kind that are above their threshold today and tradable.
 3. Remove from the file the ones no longer in that list.
 4. Notify only the ones that weren't already in the file.
-5. Save the file with the coins from step 2.
+5. Save the file with the symbols from step 2.
 
 Saving happens **after** sending: if Telegram fails, the run ends with exit code `1`
-without recording anything, and the next run retries. A corrupted file doesn't crash
-the program — it's logged, ignored, and rewritten (the cost is a possible duplicate alert).
+without recording anything, and the next run retries. Because each kind saves its own
+file right after its own send, a failure sending one kind doesn't discard the other's
+progress. A corrupted file doesn't crash the program — it's logged, ignored, and
+rewritten (the cost is a possible duplicate alert).
 
 ## Running it
 
@@ -49,7 +88,7 @@ dotnet run --project src/CoslyHighPriceBot
 ```
 
 Single run: it runs, alerts, and exits. Exit codes: `0` success (whether or not any
-coin matched), `1` error.
+symbol matched), `1` error.
 
 ## Publishing for Task Scheduler
 
@@ -58,15 +97,15 @@ publish.cmd
 ```
 
 Produces `publish\CoslyHighPriceBot.exe` (a single file, ~575 KB) next to its
-`appsettings.json`. It's *framework-dependent*: it needs the .NET 9 runtime on the
-machine. To make it runtime-independent, add `--self-contained true` to the script
-(bumps the size to ~70 MB).
+`appsettings.json` and `tokenized-stocks.json`. It's *framework-dependent*: it needs
+the .NET 9 runtime on the machine. To make it runtime-independent, add
+`--self-contained true` to the script (bumps the size to ~70 MB).
 
 The program reads its configuration from `AppContext.BaseDirectory`, so **the working
 directory** Task Scheduler launches it from doesn't matter.
 
-Heads up: `publish\appsettings.json` is a copy. If you change the threshold there,
-you also need to change it in `src\CoslyHighPriceBot\appsettings.json`, or the next
+Heads up: `publish\appsettings.json` is a copy. If you change a threshold there, you
+also need to change it in `src\CoslyHighPriceBot\appsettings.json`, or the next
 `publish.cmd` will overwrite it.
 
 ## Configuration
@@ -76,13 +115,14 @@ Every adjustable value lives in `src/CoslyHighPriceBot/appsettings.json`:
 | Key | Description |
 | --- | --- |
 | `Binance:Ticker24hUrl` | 24h ticker endpoint. With no query string it returns every symbol. |
-| `Binance:RollingTickerUrl` | Rolling-window ticker; this is where the 4h and 1h percentages come from. |
 | `Binance:ExchangeInfoUrl` | Each symbol's status (TRADING / BREAK / HALT). |
 | `Binance:QuoteAsset` | Quote asset to filter by (symbol suffix). |
-| `Binance:ExtraWindows` | Short windows to show in addition to the 24h one, in order. E.g.: `["4h", "1h"]`. |
 | `Binance:OnlyTradingSymbols` | Discards suspended pairs (see below). |
-| `Filter:MinChangePercent` | Minimum 24h gain, in %, to make it into the alert. |
-| `State:NotifiedSymbolsFile` | File with the already-notified symbols. Relative = next to the executable. |
+| `Filter:MinChangePercent` | Minimum 24h gain, in %, for **crypto**. |
+| `Filter:StockMinChangePercent` | Minimum 24h gain, in %, for **tokenized stocks**. |
+| `State:NotifiedSymbolsFile` | Already-notified crypto. Relative = next to the executable. |
+| `State:NotifiedStocksFile` | Already-notified tokenized stocks. Must differ from the above. |
+| `State:TokenizedStocksFile` | Read-only catalog of tokenized-stock base assets. |
 | `Logging:RetentionDays` | Days of logs to keep. `0` = never delete any. |
 | `Telegram:ApiBaseUrl` | Bot API base URL. |
 | `Telegram:BotToken` | Bot token. **Secret.** |
@@ -93,11 +133,11 @@ Every adjustable value lives in `src/CoslyHighPriceBot/appsettings.json`:
 `appsettings.ci.json` is the credential-free copy that **is** version-controlled: it
 serves as a template for a fresh install and, more importantly, is the configuration
 that governs the runs on GitHub Actions (the workflow copies it to `appsettings.json`
-before running). To change the threshold in the cloud, edit that file and commit.
+before running). To change a threshold in the cloud, edit that file and commit.
 
 Any key can be overridden with an **environment variable** using a double underscore
-as the separator: `Telegram__BotToken`, `Filter__MinChangePercent`,
-`State__NotifiedSymbolsFile`. They're read after the JSON, so they take priority.
+as the separator: `Telegram__BotToken`, `Filter__StockMinChangePercent`,
+`State__NotifiedStocksFile`. They're read after the JSON, so they take priority.
 This is how the token is passed in the cloud without writing it to any file.
 
 ## Running in the cloud (GitHub Actions)
@@ -108,9 +148,10 @@ every 15 minutes without depending on any machine being on.
 It needs two secrets in the repo (Settings → Secrets and variables → Actions):
 `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`.
 
-The state lives in `state/notified-symbols.json`, **version-controlled on purpose**:
-it's the only way for the bot's memory to survive between runs, since the runner is
-ephemeral. The workflow commits it at the end of each run, and only if the send succeeded.
+The state lives in `state/notified-symbols.json` and `state/notified-stocks.json`,
+**version-controlled on purpose**: it's the only way for the bot's memory to survive
+between runs, since the runner is ephemeral. The workflow commits both at the end of
+each run, and only if the send succeeded.
 
 The runner's `Logs/` folder is lost when it finishes, so the workflow uploads the
 day's file as an **artifact** (`log-<run number>`, 90-day retention). Download it from
@@ -127,21 +168,22 @@ longer than 15 minutes.
 
 ```
 src/CoslyHighPriceBot/
-├─ Program.cs                    orchestration: config → fetch → filter → alert
+├─ Program.cs                    orchestration: config → fetch → filter → alert per kind
 ├─ Configuration/AppSettings.cs  appsettings.json POCOs + validation
-├─ Models/Ticker24h.cs           Binance DTOs (all strings) + Coin and WindowChange records
+├─ Models/Ticker24h.cs           Binance DTOs (all strings) + CoinKind and Coin
+├─ tokenized-stocks.json         catalog of tokenized-stock base assets
 └─ Services/
-   ├─ BinanceClient.cs           24h ticker, rolling windows, and symbol status
-   ├─ CoinFilter.cs              filtering by quote asset and %, sorted descending
+   ├─ BinanceClient.cs           24h ticker and symbol status
+   ├─ CoinFilter.cs              classifies by kind and applies each kind's threshold
    ├─ MessageFormatter.cs        HTML message text, split if it exceeds 4096 chars
    ├─ TelegramNotifier.cs        POST to sendMessage
-   ├─ NotifiedSymbolStore.cs     reads/writes notified-symbols.json
+   ├─ SymbolSetStore.cs          reads/writes the three JSON symbol files
    └─ AppLog.cs                  console + daily file in Logs/
 ```
 
-Binance calls per run: **1** if no coin exceeds the threshold (the usual case). If one
-does, add 1 for `exchangeInfo`; and only if there are new coins to notify, 1 more per
-`ExtraWindows` entry (with all symbols batched into the `symbols` parameter).
+Binance calls per run: **1** if nothing exceeds its threshold (the usual case). If
+something does, add 1 for `exchangeInfo`. That's the ceiling — there are no per-symbol
+calls.
 
 No DI or Generic Host: it's a single-shot program and doesn't need either.
 `global.json` pins SDK 9.0.317 because the machine defaults to a .NET 10 preview.
@@ -151,7 +193,13 @@ No DI or Generic Host: it's a single-shot program and doesn't need either.
 - **`data-api.binance.vision`, not `api.binance.com`**: the main domain responds with
   `451 Unavailable For Legal Reasons` from US datacenter IPs, which is where GitHub
   Actions runners live. `data-api.binance.vision` is Binance's public market-data
-  endpoint (read-only, no API key) and serves all three endpoints this project uses.
+  endpoint (read-only, no API key) and serves both endpoints this project uses.
+- **Futures is unreachable from GitHub Actions.** Measured from a runner:
+  `fapi.binance.com` → 451, `fapi1.binance.com` → 302, `api.binance.com` → 451,
+  `data-api.binance.vision` → 200. There is **no `binance.vision` host for futures**
+  (`data-api.binance.vision/fapi/...` → 404), so futures data can't be used in the
+  cloud at all. That's why tokenized stocks are detected on spot via a catalog instead
+  of reading the classification straight from futures.
 - Binance returns **every numeric field as a string**; parsing uses
   `CultureInfo.InvariantCulture` (see `CoinFilter`).
 - **Suspended pairs**: symbols in `BREAK` or `HALT` status keep their 24h stats
@@ -160,10 +208,8 @@ No DI or Generic Host: it's a single-shot program and doesn't need either.
   defaults to `true`.
 - **Watch out for collection defaults in configuration**: the
   `Microsoft.Extensions.Configuration` binder calls `Add()` on the property's existing
-  list instead of replacing it. `ExtraWindows` starts as `[]` for that reason; setting
-  `["4h", "1h"]` as its default would end up with all four values duplicated.
-- If Binance doesn't return a symbol in a window's response, it's shown as `0%` and a
-  `WARN` is logged: without that trace it's indistinguishable from "didn't move".
+  list instead of replacing it, so a `List<T>` option must never be given a non-empty
+  default — the JSON values get appended to it rather than replacing it.
 - **Sending to a group**: no code changes needed, just put the group's ID in
   `Telegram:ChatId`. To find it: add the bot to the group, send `/start@<bot>` there
   (with privacy mode on, the bot only sees messages that start with `/` or mention

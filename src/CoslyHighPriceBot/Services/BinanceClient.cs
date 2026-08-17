@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text.Json;
 using CoslyHighPriceBot.Configuration;
 using CoslyHighPriceBot.Models;
@@ -35,42 +34,6 @@ internal sealed class BinanceClient(HttpClient http, BinanceOptions options)
             .ToHashSet(StringComparer.Ordinal);
     }
 
-    /// <summary>
-    /// Change percent for each symbol across the requested windows (e.g. "4h" and "1h").
-    /// One call per window, with all symbols batched together. Symbols with no trades in
-    /// the window come back as 0, which is the value Binance reports.
-    /// </summary>
-    public async Task<IReadOnlyDictionary<string, IReadOnlyList<WindowChange>>> GetWindowChangesAsync(
-        IReadOnlyCollection<string> symbols,
-        IReadOnlyList<string> windows,
-        CancellationToken cancellationToken)
-    {
-        var result = symbols.ToDictionary(s => s, _ => new List<WindowChange>(), StringComparer.Ordinal);
-        if (symbols.Count == 0)
-            return result.ToDictionary(p => p.Key, p => (IReadOnlyList<WindowChange>)p.Value, StringComparer.Ordinal);
-
-        foreach (var window in windows)
-        {
-            var url = $"{options.RollingTickerUrl}?symbols={EncodeSymbols(symbols)}&windowSize={window}";
-            var tickers = await GetJsonAsync<List<WindowTicker>>(url, cancellationToken) ?? [];
-
-            var bySymbol = tickers
-                .Where(t => result.ContainsKey(t.Symbol))
-                .ToDictionary(t => t.Symbol, ParseChangePercent, StringComparer.Ordinal);
-
-            // A symbol missing from the response is shown as 0%, same as one with no trades.
-            // It's logged because these are two different situations and without a trace there's no way to tell them apart.
-            var missing = result.Keys.Where(s => !bySymbol.ContainsKey(s)).ToList();
-            if (missing.Count > 0)
-                AppLog.Warn($"Binance returned no {window} data for: {string.Join(", ", missing)}. Shown as 0%.");
-
-            foreach (var (symbol, changes) in result)
-                changes.Add(new WindowChange(window, bySymbol.GetValueOrDefault(symbol)));
-        }
-
-        return result.ToDictionary(p => p.Key, p => (IReadOnlyList<WindowChange>)p.Value, StringComparer.Ordinal);
-    }
-
     private async Task<T?> GetJsonAsync<T>(string url, CancellationToken cancellationToken)
     {
         try
@@ -98,9 +61,4 @@ internal sealed class BinanceClient(HttpClient http, BinanceOptions options)
     /// <summary>Binance expects the symbols parameter as a JSON array inside the query string.</summary>
     private static string EncodeSymbols(IReadOnlyCollection<string> symbols) =>
         Uri.EscapeDataString(JsonSerializer.Serialize(symbols));
-
-    private static decimal ParseChangePercent(WindowTicker ticker) =>
-        decimal.TryParse(ticker.PriceChangePercent, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
-            ? value
-            : 0m;
 }

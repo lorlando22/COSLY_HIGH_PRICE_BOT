@@ -6,13 +6,16 @@ namespace CoslyHighPriceBot.Services;
 internal static class CoinFilter
 {
     /// <summary>
-    /// Keeps the pairs for the given quote asset that rose at least
-    /// <paramref name="minChangePercent"/> in 24h, sorted from highest to lowest gain.
+    /// Keeps the pairs for the given quote asset that rose at least as much as the
+    /// threshold for their kind, sorted from highest to lowest gain. Tokenized stocks
+    /// move far less than crypto, so they get their own (lower) threshold.
     /// </summary>
     public static IReadOnlyList<Coin> Filter(
         IEnumerable<Ticker24h> tickers,
         string quoteAsset,
-        decimal minChangePercent)
+        decimal minChangePercent,
+        decimal stockMinChangePercent,
+        IReadOnlySet<string> tokenizedStockAssets)
     {
         var matches = new List<Coin>();
 
@@ -25,12 +28,21 @@ internal static class CoinFilter
             if (ticker.Symbol.Length <= quoteAsset.Length)
                 continue;
 
-            if (!TryParse(ticker.PriceChangePercent, out var changePercent) || changePercent < minChangePercent)
+            if (!TryParse(ticker.PriceChangePercent, out var changePercent))
+                continue;
+
+            var baseAsset = ticker.Symbol[..^quoteAsset.Length];
+            var kind = tokenizedStockAssets.Contains(baseAsset) ? CoinKind.TokenizedStock : CoinKind.Crypto;
+            var threshold = kind == CoinKind.TokenizedStock ? stockMinChangePercent : minChangePercent;
+
+            if (changePercent < threshold)
                 continue;
 
             matches.Add(new Coin(
                 Symbol: ticker.Symbol,
+                BaseAsset: baseAsset,
                 QuoteAsset: quoteAsset,
+                Kind: kind,
                 ChangePercent: changePercent,
                 LastPrice: Parse(ticker.LastPrice),
                 OpenPrice: Parse(ticker.OpenPrice),

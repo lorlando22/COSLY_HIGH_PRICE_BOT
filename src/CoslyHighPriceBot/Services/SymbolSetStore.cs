@@ -3,14 +3,17 @@ using System.Text.Json;
 namespace CoslyHighPriceBot.Services;
 
 /// <summary>
-/// Remembers which symbols have already been notified, so the message isn't repeated
-/// while they stay above the threshold. It's a JSON array of symbols, e.g.: ["HEMIUSDT","COWUSDT"].
+/// A JSON array of symbols on disk, e.g.: ["HEMIUSDT","COWUSDT"]. Three files share this
+/// shape: the crypto symbols already notified, the tokenized-stock ones, and the
+/// read-only catalog of which base assets are tokenized stocks.
 /// </summary>
-internal sealed class NotifiedSymbolStore(string filePath)
+internal sealed class SymbolSetStore(string filePath)
 {
     private static readonly JsonSerializerOptions WriteOptions = new() { WriteIndented = true };
 
     public string FilePath => filePath;
+
+    public string FileName => Path.GetFileName(filePath);
 
     public IReadOnlySet<string> Load()
     {
@@ -26,7 +29,7 @@ internal sealed class NotifiedSymbolStore(string filePath)
         {
             // A corrupted file can't leave the bot unusable: it starts from scratch.
             // The cost is a possible duplicate alert, far smaller than never alerting again.
-            AppLog.Warn($"Could not read {Path.GetFileName(filePath)} ({ex.Message}). Ignored and rewritten.");
+            AppLog.Warn($"Could not read {FileName} ({ex.Message}). Ignored and rewritten.");
             return new HashSet<string>(StringComparer.Ordinal);
         }
     }

@@ -33,16 +33,6 @@ internal sealed class Ticker24h
     public long TradeCount { get; set; }
 }
 
-/// <summary>Response from /api/v3/ticker (rolling window); we only care about the change percent.</summary>
-internal sealed class WindowTicker
-{
-    [JsonPropertyName("symbol")]
-    public string Symbol { get; set; } = "";
-
-    [JsonPropertyName("priceChangePercent")]
-    public string PriceChangePercent { get; set; } = "";
-}
-
 /// <summary>Response from /api/v3/exchangeInfo, trimmed down to what we use.</summary>
 internal sealed class ExchangeInfo
 {
@@ -60,21 +50,26 @@ internal sealed class SymbolInfo
     public string Status { get; set; } = "";
 }
 
-/// <summary>A coin's change percent over a short window (e.g. "4h").</summary>
-internal sealed record WindowChange(string Window, decimal ChangePercent);
+/// <summary>
+/// What kind of asset a symbol represents. Each kind has its own threshold, its own
+/// Telegram message and its own already-notified file.
+/// </summary>
+internal enum CoinKind
+{
+    Crypto,
+    TokenizedStock
+}
 
 /// <summary>A coin already parsed and ready to display.</summary>
 internal sealed record Coin(
     string Symbol,
+    string BaseAsset,
     string QuoteAsset,
+    CoinKind Kind,
     decimal ChangePercent,
     decimal LastPrice,
     decimal OpenPrice,
     decimal HighPrice,
     decimal LowPrice,
     decimal QuoteVolume,
-    long TradeCount)
-{
-    /// <summary>Short-window changes, in the order configured in Binance:ExtraWindows.</summary>
-    public IReadOnlyList<WindowChange> WindowChanges { get; init; } = [];
-}
+    long TradeCount);
