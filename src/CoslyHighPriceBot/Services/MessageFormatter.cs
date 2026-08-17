@@ -3,12 +3,12 @@ using CoslyHighPriceBot.Models;
 
 namespace CoslyHighPriceBot.Services;
 
-/// <summary>Arma el texto del aviso de Telegram usando parse_mode HTML.</summary>
+/// <summary>Builds the Telegram alert text using parse_mode HTML.</summary>
 internal static class MessageFormatter
 {
     /// <summary>
-    /// Telegram corta los mensajes en 4096 caracteres. Dejamos margen para el encabezado
-    /// y para que ningún bloque de moneda quede partido a la mitad.
+    /// Telegram truncates messages at 4096 characters. We leave room for the header
+    /// and so no coin block gets split in half.
     /// </summary>
     private const int MaxBodyLength = 3600;
 
@@ -19,15 +19,15 @@ internal static class MessageFormatter
         return bodies
             .Select((body, index) =>
             {
-                var part = bodies.Count > 1 ? $" · parte {index + 1}/{bodies.Count}" : "";
+                var part = bodies.Count > 1 ? $" · part {index + 1}/{bodies.Count}" : "";
                 return BuildHeader(quoteAsset, minChangePercent, part) + "\n\n" + body;
             })
             .ToList();
     }
 
     private static string BuildHeader(string quoteAsset, decimal minChangePercent, string part) =>
-        $"🚀 <b>Pumps {Escape(quoteAsset)} — últimas 24h</b>\n" +
-        $"<i>{DateTime.UtcNow:dd/MM/yyyy HH:mm} UTC · umbral +{minChangePercent:0.##}%{part}</i>";
+        $"🚀 <b>{Escape(quoteAsset)} Pumps — last 24h</b>\n" +
+        $"<i>{DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC · threshold +{minChangePercent:0.##}%{part}</i>";
 
     private static string BuildBlock(Coin coin, int position)
     {
@@ -41,11 +41,11 @@ internal static class MessageFormatter
         }
 
         return block
-            .Append($"💵 Precio: {FormatPrice(coin.LastPrice)}\n")
-            .Append($"📊 Apertura: {FormatPrice(coin.OpenPrice)}\n")
-            .Append($"🔺 Máx: {FormatPrice(coin.HighPrice)}   🔻 Mín: {FormatPrice(coin.LowPrice)}\n")
-            .Append($"💰 Volumen 24h: {FormatVolume(coin.QuoteVolume)} {Escape(coin.QuoteAsset)}\n")
-            .Append($"🔁 Operaciones: {coin.TradeCount:N0}\n\n")
+            .Append($"💵 Price: {FormatPrice(coin.LastPrice)}\n")
+            .Append($"📊 Open: {FormatPrice(coin.OpenPrice)}\n")
+            .Append($"🔺 High: {FormatPrice(coin.HighPrice)}   🔻 Low: {FormatPrice(coin.LowPrice)}\n")
+            .Append($"💰 24h Volume: {FormatVolume(coin.QuoteVolume)} {Escape(coin.QuoteAsset)}\n")
+            .Append($"🔁 Trades: {coin.TradeCount:N0}\n\n")
             .ToString();
     }
 
@@ -73,7 +73,7 @@ internal static class MessageFormatter
         return chunks;
     }
 
-    /// <summary>Los precios van desde decenas de miles hasta 0.00000001, así que el formato se adapta.</summary>
+    /// <summary>Prices range from the tens of thousands down to 0.00000001, so the format adapts.</summary>
     private static string FormatPrice(decimal value) =>
         value >= 1m ? value.ToString("N4") : value.ToString("0.########");
 
@@ -85,7 +85,7 @@ internal static class MessageFormatter
         _ => value.ToString("0.##")
     };
 
-    /// <summary>Escapado obligatorio para parse_mode HTML.</summary>
+    /// <summary>Escaping required for parse_mode HTML.</summary>
     private static string Escape(string value) =>
         value.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
 }

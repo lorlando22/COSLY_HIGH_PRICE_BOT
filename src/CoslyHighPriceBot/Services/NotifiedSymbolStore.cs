@@ -3,8 +3,8 @@ using System.Text.Json;
 namespace CoslyHighPriceBot.Services;
 
 /// <summary>
-/// Recuerda de qué símbolos ya se avisó, para no repetir el mensaje mientras siguen
-/// por encima del umbral. Es un array JSON de símbolos, por ejemplo: ["HEMIUSDT","COWUSDT"].
+/// Remembers which symbols have already been notified, so the message isn't repeated
+/// while they stay above the threshold. It's a JSON array of symbols, e.g.: ["HEMIUSDT","COWUSDT"].
 /// </summary>
 internal sealed class NotifiedSymbolStore(string filePath)
 {
@@ -24,16 +24,16 @@ internal sealed class NotifiedSymbolStore(string filePath)
         }
         catch (JsonException ex)
         {
-            // Un archivo corrupto no puede dejar el bot inutilizable: se arranca de cero.
-            // El costo es un posible aviso repetido, mucho menor que no avisar nunca más.
-            AppLog.Warn($"No se pudo leer {Path.GetFileName(filePath)} ({ex.Message}). Se ignora y se reescribe.");
+            // A corrupted file can't leave the bot unusable: it starts from scratch.
+            // The cost is a possible duplicate alert, far smaller than never alerting again.
+            AppLog.Warn($"Could not read {Path.GetFileName(filePath)} ({ex.Message}). Ignored and rewritten.");
             return new HashSet<string>(StringComparer.Ordinal);
         }
     }
 
     public void Save(IEnumerable<string> symbols)
     {
-        // La ruta puede apuntar a una carpeta que todavía no existe (por ejemplo state/ en CI).
+        // The path may point to a folder that doesn't exist yet (e.g. state/ in CI).
         var folder = Path.GetDirectoryName(filePath);
         if (!string.IsNullOrEmpty(folder))
             Directory.CreateDirectory(folder);

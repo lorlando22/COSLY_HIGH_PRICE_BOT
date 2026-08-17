@@ -1,23 +1,23 @@
-name: Aviso de pumps
+name: Pump alert
 
 on:
   schedule:
-    # Cada 15 minutos. GitHub puede retrasar los cron programados bajo carga:
-    # el intervalo real suele ser mayor. Para pumps de 24h no es un problema.
+    # Every 15 minutes. GitHub can delay scheduled crons under load: the actual
+    # interval tends to run longer. That's not an issue for 24h pumps.
     - cron: '*/15 * * * *'
   workflow_dispatch:
 
-# Necesario para que el workflow pueda commitear el estado de vuelta al repo.
+# Needed so the workflow can commit the state back to the repo.
 permissions:
   contents: write
 
-# Dos corridas simultáneas se pisarían el push del estado.
+# Two concurrent runs would clash pushing the state.
 concurrency:
   group: pump-alert
   cancel-in-progress: false
 
 jobs:
-  avisar:
+  alert:
     runs-on: ubuntu-latest
 
     steps:
@@ -27,23 +27,23 @@ jobs:
         with:
           global-json-file: global.json
 
-      # appsettings.json no está en el repo (lleva el token). appsettings.ci.json es la
-      # configuración que gobierna estas corridas; los secretos entran por variables de
-      # entorno en el paso siguiente.
-      - name: Preparar configuración
+      # appsettings.json isn't in the repo (it carries the token). appsettings.ci.json
+      # is the config that governs these runs; secrets come in as environment
+      # variables in the next step.
+      - name: Prepare configuration
         run: cp src/CoslyHighPriceBot/appsettings.ci.json src/CoslyHighPriceBot/appsettings.json
 
-      - name: Buscar pumps y avisar
+      - name: Find pumps and alert
         env:
           Telegram__BotToken: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           Telegram__ChatId: ${{ secrets.TELEGRAM_CHAT_ID }}
-          # Ruta absoluta dentro del repo para que el estado quede versionado.
+          # Absolute path inside the repo so the state stays version-controlled.
           State__NotifiedSymbolsFile: ${{ github.workspace }}/state/notified-symbols.json
         run: dotnet run --project src/CoslyHighPriceBot -c Release
 
-      # always() para que el log quede disponible sobre todo cuando la corrida falla,
-      # que es justo cuando hace falta leerlo.
-      - name: Publicar el log
+      # always() so the log stays available especially when the run fails,
+      # which is exactly when you need to read it.
+      - name: Upload log
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -52,16 +52,16 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-      # Si la ejecución falla no se llega acá, así que un error de Telegram
-      # no deja marcada como avisada una moneda que nunca se envió.
-      - name: Guardar símbolos avisados
+      # If the run fails this step is never reached, so a Telegram error never
+      # leaves a coin marked as notified when it was never actually sent.
+      - name: Save notified symbols
         run: |
           git config user.name  'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           git add state/notified-symbols.json
           if git diff --staged --quiet; then
-            echo "Sin cambios en el estado."
+            echo "No changes to the state."
           else
-            git commit -m "Actualiza símbolos avisados [skip ci]"
+            git commit -m "Update notified symbols [skip ci]"
             git push
           fi

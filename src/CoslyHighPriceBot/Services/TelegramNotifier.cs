@@ -4,12 +4,12 @@ using CoslyHighPriceBot.Configuration;
 
 namespace CoslyHighPriceBot.Services;
 
-/// <summary>Envía mensajes al chat configurado vía la Bot API de Telegram.</summary>
+/// <summary>Sends messages to the configured chat via the Telegram Bot API.</summary>
 internal sealed class TelegramNotifier(HttpClient http, TelegramOptions options)
 {
     public async Task SendAsync(string text, CancellationToken cancellationToken)
     {
-        // El token va en la URL: nunca debe terminar en un log ni en un mensaje de error.
+        // The token goes in the URL: it must never end up in a log or an error message.
         var url = $"{options.ApiBaseUrl.TrimEnd('/')}/bot{options.BotToken}/sendMessage";
         var payload = new SendMessageRequest(options.ChatId, text, "HTML", DisableWebPagePreview: true);
 
@@ -20,7 +20,7 @@ internal sealed class TelegramNotifier(HttpClient http, TelegramOptions options)
         }
         catch (HttpRequestException ex)
         {
-            throw new InvalidOperationException($"No se pudo contactar a la API de Telegram: {ex.Message}");
+            throw new InvalidOperationException($"Could not reach the Telegram API: {ex.Message}");
         }
 
         using (response)
@@ -28,11 +28,11 @@ internal sealed class TelegramNotifier(HttpClient http, TelegramOptions options)
             if (response.IsSuccessStatusCode)
                 return;
 
-            // El cuerpo del error de Telegram suele explicar exactamente qué pasó
-            // (token inválido, chat inexistente, HTML mal formado).
+            // Telegram's error body usually explains exactly what went wrong
+            // (invalid token, unknown chat, malformed HTML).
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
             throw new InvalidOperationException(
-                $"Telegram respondió {(int)response.StatusCode} {response.ReasonPhrase}: {body}");
+                $"Telegram responded {(int)response.StatusCode} {response.ReasonPhrase}: {body}");
         }
     }
 

@@ -6,8 +6,8 @@ namespace CoslyHighPriceBot.Services;
 internal static class CoinFilter
 {
     /// <summary>
-    /// Se queda con los pares de la moneda de cotización indicada que subieron al menos
-    /// <paramref name="minChangePercent"/> en 24h, ordenados de mayor a menor suba.
+    /// Keeps the pairs for the given quote asset that rose at least
+    /// <paramref name="minChangePercent"/> in 24h, sorted from highest to lowest gain.
     /// </summary>
     public static IReadOnlyList<Coin> Filter(
         IEnumerable<Ticker24h> tickers,
@@ -21,7 +21,7 @@ internal static class CoinFilter
             if (!ticker.Symbol.EndsWith(quoteAsset, StringComparison.Ordinal))
                 continue;
 
-            // Un símbolo que sea sólo el quote (o valores no numéricos) no nos sirve.
+            // A symbol that's just the quote asset (or has non-numeric values) is of no use to us.
             if (ticker.Symbol.Length <= quoteAsset.Length)
                 continue;
 
@@ -43,7 +43,7 @@ internal static class CoinFilter
         return matches.OrderByDescending(c => c.ChangePercent).ToList();
     }
 
-    /// <summary>Cuenta cuántos símbolos del exchange corresponden a la moneda de cotización.</summary>
+    /// <summary>Counts how many symbols on the exchange belong to the given quote asset.</summary>
     public static int CountQuotePairs(IEnumerable<Ticker24h> tickers, string quoteAsset) =>
         tickers.Count(t =>
             t.Symbol.Length > quoteAsset.Length &&

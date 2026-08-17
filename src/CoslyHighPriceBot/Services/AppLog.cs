@@ -3,8 +3,8 @@ using System.Globalization;
 namespace CoslyHighPriceBot.Services;
 
 /// <summary>
-/// Escribe por consola y a un archivo diario en la carpeta Logs, junto al ejecutable.
-/// Un helper estático alcanza: el programa es de un solo disparo y de un solo hilo.
+/// Writes to the console and to a daily file in the Logs folder next to the executable.
+/// A static helper is enough: the program is single-shot and single-threaded.
 /// </summary>
 internal static class AppLog
 {
@@ -13,7 +13,7 @@ internal static class AppLog
 
     private static readonly string Folder = Path.Combine(AppContext.BaseDirectory, "Logs");
 
-    /// <summary>Se apaga solo si falla la escritura, para no repetir el mismo error en cada línea.</summary>
+    /// <summary>Turns itself off only if writing fails, so the same error isn't repeated on every line.</summary>
     private static bool fileLoggingEnabled = true;
 
     public static void Info(string message) => Write("INFO", message, Console.Out);
@@ -23,10 +23,9 @@ internal static class AppLog
     public static void Error(string message) => Write("ERROR", message, Console.Error);
 
     /// <summary>
-    /// Borra los logs con más días de antigüedad que <paramref name="retentionDays"/>.
-    /// La antigüedad sale de la fecha del nombre del archivo, no de su fecha de
-    /// modificación: copiar la carpeta no debería rejuvenecer los logs.
-    /// Con 0 no se borra nada.
+    /// Deletes logs older than <paramref name="retentionDays"/> days. Age comes from the
+    /// date in the file name, not its modification date: copying the folder shouldn't
+    /// make old logs look fresh. 0 means nothing gets deleted.
     /// </summary>
     public static void DeleteOldFiles(int retentionDays)
     {
@@ -53,12 +52,12 @@ internal static class AppLog
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                Warn($"No se pudo borrar el log {Path.GetFileName(file)}: {ex.Message}");
+                Warn($"Could not delete log {Path.GetFileName(file)}: {ex.Message}");
             }
         }
 
         if (deleted > 0)
-            Info($"{deleted} log(s) de más de {retentionDays} días eliminados.");
+            Info($"{deleted} log(s) older than {retentionDays} days deleted.");
     }
 
     private static void Write(string level, string message, TextWriter console)
@@ -78,9 +77,9 @@ internal static class AppLog
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // Que no se pueda escribir el log no puede impedir que el bot avise del pump.
+            // Not being able to write the log can't be allowed to stop the bot from alerting about a pump.
             fileLoggingEnabled = false;
-            console.WriteLine($"{now:yyyy-MM-dd HH:mm:ss} [WARN] No se pudo escribir en {Folder} ({ex.Message}). Sigue sólo por consola.");
+            console.WriteLine($"{now:yyyy-MM-dd HH:mm:ss} [WARN] Could not write to {Folder} ({ex.Message}). Continuing with console only.");
         }
     }
 }

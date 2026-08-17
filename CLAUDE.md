@@ -1,177 +1,177 @@
 # COSLY_HIGH_PRICE_BOT
 
-App de consola en .NET 9 que detecta "pumps" en Binance: consulta el ticker de 24 horas,
-se queda con los pares `*USDT` que subieron más de un umbral configurable (100% por
-defecto) y envía un único aviso formateado a Telegram.
+.NET 9 console app that detects "pumps" on Binance: it queries the 24-hour ticker,
+keeps the `*USDT` pairs that rose more than a configurable threshold (100% by
+default), and sends a single formatted alert to Telegram.
 
-Si ninguna moneda supera el umbral, **no envía nada** — sólo lo informa por consola.
+If no coin exceeds the threshold, **nothing is sent** — it's just logged to the console.
 
 ## Log
 
-Todo lo que sale por consola se escribe además en `Logs\pumps-<yyyy-MM-dd>.log`, junto
-al ejecutable: un archivo por día, con `yyyy-MM-dd HH:mm:ss [NIVEL] mensaje` por línea.
+Everything printed to the console is also written to `Logs\pumps-<yyyy-MM-dd>.log`,
+next to the executable: one file per day, one `yyyy-MM-dd HH:mm:ss [LEVEL] message`
+line per entry.
 
-Eventos que quedan registrados: inicio y fin de la ejecución (con el código de salida),
-cada símbolo avisado por Telegram, cada símbolo que baja del umbral y se borra del JSON,
-los pares descartados por estar suspendidos, y cualquier excepción.
+Events that get logged: the start and end of each run (with its exit code), every
+symbol notified via Telegram, every symbol that drops below the threshold and is
+removed from the JSON, pairs discarded for being suspended, and any exception.
 
-Si la carpeta no se puede escribir, el logueo a archivo se apaga y el programa sigue por
-consola: no poder loguear nunca puede impedir que llegue el aviso del pump.
+If the folder can't be written to, file logging turns itself off and the program
+keeps going on the console: failing to log can never be allowed to block a pump alert.
 
-Al arrancar se borran los logs más viejos que `Logging:RetentionDays` (30 por defecto,
-`0` conserva todos). La antigüedad sale de **la fecha del nombre del archivo**, no de su
-fecha de modificación, para que copiar la carpeta no los rejuvenezca. Los archivos que no
-siguen el patrón `pumps-<yyyy-MM-dd>.log` no se tocan.
+On startup, logs older than `Logging:RetentionDays` are deleted (30 by default, `0`
+keeps them all). Age comes from **the date in the file name**, not its modification
+date, so copying the folder doesn't make old logs look fresh. Files that don't match
+the `pumps-<yyyy-MM-dd>.log` pattern are left untouched.
 
-## Aviso único por símbolo
+## One alert per symbol
 
-Cada símbolo avisado se guarda en `notified-symbols.json` (un array JSON, junto al
-ejecutable) y no se vuelve a avisar mientras siga por encima del umbral. Cuando baja,
-se borra del archivo, así que si más adelante repite el pump vuelve a avisar.
+Every notified symbol is saved to `notified-symbols.json` (a JSON array, next to the
+executable) and won't be notified again while it stays above the threshold. Once it
+drops, it's removed from the file, so if it pumps again later it gets notified again.
 
-El ciclo de cada corrida:
+Each run's cycle:
 
-1. Leer el archivo (si no existe, se arranca con la lista vacía).
-2. Calcular las monedas que hoy superan el umbral y están operables.
-3. Quitar del archivo las que ya no están en esa lista.
-4. Avisar sólo de las que no estaban en el archivo.
-5. Guardar el archivo con las monedas del punto 2.
+1. Read the file (if it doesn't exist, start with an empty list).
+2. Compute the coins that are above the threshold today and tradable.
+3. Remove from the file the ones no longer in that list.
+4. Notify only the ones that weren't already in the file.
+5. Save the file with the coins from step 2.
 
-El guardado ocurre **después** del envío: si Telegram falla, la corrida termina en `1`
-sin registrar nada y la próxima reintenta. Un archivo corrupto no rompe el programa —
-se avisa por consola, se ignora y se reescribe (el costo es un posible aviso repetido).
+Saving happens **after** sending: if Telegram fails, the run ends with exit code `1`
+without recording anything, and the next run retries. A corrupted file doesn't crash
+the program — it's logged, ignored, and rewritten (the cost is a possible duplicate alert).
 
-## Ejecutar
+## Running it
 
 ```bash
 dotnet run --project src/CoslyHighPriceBot
 ```
 
-Ejecución única: corre, avisa y termina. Códigos de salida: `0` correcto (haya o no
-coincidencias), `1` error.
+Single run: it runs, alerts, and exits. Exit codes: `0` success (whether or not any
+coin matched), `1` error.
 
-## Publicar para el Programador de tareas
+## Publishing for Task Scheduler
 
 ```bash
 publish.cmd
 ```
 
-Deja `publish\CoslyHighPriceBot.exe` (un solo archivo, ~575 KB) junto a su
-`appsettings.json`. Es *framework-dependent*: necesita el runtime .NET 9 en la máquina.
-Para que no dependa del runtime, agregar `--self-contained true` al script (pasa a ~70 MB).
+Produces `publish\CoslyHighPriceBot.exe` (a single file, ~575 KB) next to its
+`appsettings.json`. It's *framework-dependent*: it needs the .NET 9 runtime on the
+machine. To make it runtime-independent, add `--self-contained true` to the script
+(bumps the size to ~70 MB).
 
-El programa lee la configuración desde `AppContext.BaseDirectory`, así que **no importa
-el directorio de trabajo** con el que lo lance el Programador de tareas.
+The program reads its configuration from `AppContext.BaseDirectory`, so **the working
+directory** Task Scheduler launches it from doesn't matter.
 
-Ojo: `publish\appsettings.json` es una copia. Si se cambia el umbral ahí, hay que
-cambiarlo también en `src\CoslyHighPriceBot\appsettings.json` o el próximo `publish.cmd`
-lo pisa.
+Heads up: `publish\appsettings.json` is a copy. If you change the threshold there,
+you also need to change it in `src\CoslyHighPriceBot\appsettings.json`, or the next
+`publish.cmd` will overwrite it.
 
-## Configuración
+## Configuration
 
-Todo valor ajustable vive en `src/CoslyHighPriceBot/appsettings.json`:
+Every adjustable value lives in `src/CoslyHighPriceBot/appsettings.json`:
 
-| Clave | Descripción |
+| Key | Description |
 | --- | --- |
-| `Binance:Ticker24hUrl` | Endpoint del ticker 24h. Sin query string devuelve todos los símbolos. |
-| `Binance:RollingTickerUrl` | Ticker de ventana móvil; de acá salen los % de 4h y 1h. |
-| `Binance:ExchangeInfoUrl` | Estado de cada símbolo (TRADING / BREAK / HALT). |
-| `Binance:QuoteAsset` | Moneda de cotización a filtrar (sufijo del símbolo). |
-| `Binance:ExtraWindows` | Ventanas cortas a mostrar además de las 24h, en orden. Ej: `["4h", "1h"]`. |
-| `Binance:OnlyTradingSymbols` | Descarta los pares suspendidos (ver más abajo). |
-| `Filter:MinChangePercent` | Suba mínima en 24h, en %, para entrar en el aviso. |
-| `State:NotifiedSymbolsFile` | Archivo con los símbolos ya avisados. Relativo = junto al ejecutable. |
-| `Logging:RetentionDays` | Días de logs a conservar. `0` = no borrar ninguno. |
-| `Telegram:ApiBaseUrl` | Base de la Bot API. |
-| `Telegram:BotToken` | Token del bot. **Secreto.** |
-| `Telegram:ChatId` | Chat destino. Privado = ID positivo; grupo/supergrupo = **negativo**. |
+| `Binance:Ticker24hUrl` | 24h ticker endpoint. With no query string it returns every symbol. |
+| `Binance:RollingTickerUrl` | Rolling-window ticker; this is where the 4h and 1h percentages come from. |
+| `Binance:ExchangeInfoUrl` | Each symbol's status (TRADING / BREAK / HALT). |
+| `Binance:QuoteAsset` | Quote asset to filter by (symbol suffix). |
+| `Binance:ExtraWindows` | Short windows to show in addition to the 24h one, in order. E.g.: `["4h", "1h"]`. |
+| `Binance:OnlyTradingSymbols` | Discards suspended pairs (see below). |
+| `Filter:MinChangePercent` | Minimum 24h gain, in %, to make it into the alert. |
+| `State:NotifiedSymbolsFile` | File with the already-notified symbols. Relative = next to the executable. |
+| `Logging:RetentionDays` | Days of logs to keep. `0` = never delete any. |
+| `Telegram:ApiBaseUrl` | Bot API base URL. |
+| `Telegram:BotToken` | Bot token. **Secret.** |
+| `Telegram:ChatId` | Destination chat. Private = positive ID; group/supergroup = **negative**. |
 
-`appsettings.json` está en `.gitignore` porque contiene el token.
+`appsettings.json` is in `.gitignore` because it contains the token.
 
-`appsettings.ci.json` es la copia sin credenciales que **sí se versiona**: sirve de
-plantilla para una instalación nueva y, sobre todo, es la configuración que gobierna las
-corridas en GitHub Actions (el workflow la copia a `appsettings.json` antes de ejecutar).
-Para cambiar el umbral en la nube hay que editar ese archivo y commitear.
+`appsettings.ci.json` is the credential-free copy that **is** version-controlled: it
+serves as a template for a fresh install and, more importantly, is the configuration
+that governs the runs on GitHub Actions (the workflow copies it to `appsettings.json`
+before running). To change the threshold in the cloud, edit that file and commit.
 
-Cualquier clave se puede pisar con una **variable de entorno** usando doble guión bajo
-como separador: `Telegram__BotToken`, `Filter__MinChangePercent`,
-`State__NotifiedSymbolsFile`. Se leen después del JSON, así que tienen prioridad. Es la
-forma de pasar el token en la nube sin escribirlo en ningún archivo.
+Any key can be overridden with an **environment variable** using a double underscore
+as the separator: `Telegram__BotToken`, `Filter__MinChangePercent`,
+`State__NotifiedSymbolsFile`. They're read after the JSON, so they take priority.
+This is how the token is passed in the cloud without writing it to any file.
 
-## Ejecución en la nube (GitHub Actions)
+## Running in the cloud (GitHub Actions)
 
-[`.github/workflows/pump-alert.yml`](.github/workflows/pump-alert.yml) corre el bot cada
-15 minutos sin depender de ninguna PC encendida.
+[`.github/workflows/pump-alert.yml`](.github/workflows/pump-alert.yml) runs the bot
+every 15 minutes without depending on any machine being on.
 
-Requiere dos secrets en el repo (Settings → Secrets and variables → Actions):
-`TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID`.
+It needs two secrets in the repo (Settings → Secrets and variables → Actions):
+`TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`.
 
-El estado vive en `state/notified-symbols.json`, **versionado a propósito**: es la única
-forma de que la memoria del bot sobreviva entre corridas, porque el runner es efímero.
-El workflow lo commitea al final de cada ejecución, y sólo si el envío salió bien.
+The state lives in `state/notified-symbols.json`, **version-controlled on purpose**:
+it's the only way for the bot's memory to survive between runs, since the runner is
+ephemeral. The workflow commits it at the end of each run, and only if the send succeeded.
 
-La carpeta `Logs/` del runner se pierde al terminar, así que el workflow sube el archivo
-del día como **artifact** (`log-<número de corrida>`, 90 días de retención). Se descarga
-desde la página de la corrida. El mismo contenido está en la salida del paso
-"Buscar pumps y avisar". El artifact se sube con `always()`: interesa sobre todo cuando
-la corrida falla.
+The runner's `Logs/` folder is lost when it finishes, so the workflow uploads the
+day's file as an **artifact** (`log-<run number>`, 90-day retention). Download it from
+the run's page. The same content is in the output of the "Find pumps and alert" step.
+The artifact is uploaded with `always()`: it matters most when the run fails.
 
-Es gratis **si el repo es público**: cada corrida gasta un mínimo de 1 minuto facturable
-y 2.880 corridas al mes superan los 2.000 minutos del plan gratuito para repos privados.
+It's free **if the repo is public**: every run costs a minimum of 1 billable minute,
+and 2,880 runs a month go past the 2,000-minute free plan for private repos.
 
-GitHub retrasa los cron programados cuando hay carga, así que el intervalo real puede
-ser bastante mayor a 15 minutos.
+GitHub delays scheduled crons under load, so the actual interval can run noticeably
+longer than 15 minutes.
 
-## Estructura
+## Structure
 
 ```
 src/CoslyHighPriceBot/
-├─ Program.cs                    orquestación: config → fetch → filtro → aviso
-├─ Configuration/AppSettings.cs  POCOs de appsettings.json + validación
-├─ Models/Ticker24h.cs           DTOs de Binance (todo string) + records Coin y WindowChange
+├─ Program.cs                    orchestration: config → fetch → filter → alert
+├─ Configuration/AppSettings.cs  appsettings.json POCOs + validation
+├─ Models/Ticker24h.cs           Binance DTOs (all strings) + Coin and WindowChange records
 └─ Services/
-   ├─ BinanceClient.cs           ticker 24h, ventanas móviles y estado de los símbolos
-   ├─ CoinFilter.cs              filtrado por quote asset y % , ordenado desc
-   ├─ MessageFormatter.cs        texto HTML del mensaje, partido si supera 4096 chars
-   ├─ TelegramNotifier.cs        POST a sendMessage
-   ├─ NotifiedSymbolStore.cs     lee/escribe notified-symbols.json
-   └─ AppLog.cs                  consola + archivo diario en Logs/
+   ├─ BinanceClient.cs           24h ticker, rolling windows, and symbol status
+   ├─ CoinFilter.cs              filtering by quote asset and %, sorted descending
+   ├─ MessageFormatter.cs        HTML message text, split if it exceeds 4096 chars
+   ├─ TelegramNotifier.cs        POST to sendMessage
+   ├─ NotifiedSymbolStore.cs     reads/writes notified-symbols.json
+   └─ AppLog.cs                  console + daily file in Logs/
 ```
 
-Llamadas a Binance por ejecución: **1** si ninguna moneda supera el umbral (el caso
-habitual). Si alguna lo supera, se suma 1 de `exchangeInfo`; y sólo si además hay
-monedas nuevas para avisar, 1 por cada ventana de `ExtraWindows` (con todos los
-símbolos juntos en el parámetro `symbols`).
+Binance calls per run: **1** if no coin exceeds the threshold (the usual case). If one
+does, add 1 for `exchangeInfo`; and only if there are new coins to notify, 1 more per
+`ExtraWindows` entry (with all symbols batched into the `symbols` parameter).
 
-Sin DI ni Generic Host: es un programa de un solo disparo y no lo justifica.
-`global.json` fija el SDK 9.0.317 porque la máquina tiene un preview de .NET 10 por defecto.
+No DI or Generic Host: it's a single-shot program and doesn't need either.
+`global.json` pins SDK 9.0.317 because the machine defaults to a .NET 10 preview.
 
-## Detalles a tener en cuenta
+## Things to keep in mind
 
-- **`data-api.binance.vision`, no `api.binance.com`**: el dominio principal responde
-  `451 Unavailable For Legal Reasons` desde IPs de datacenters de EE.UU., que es donde
-  corren los runners de GitHub Actions. `data-api.binance.vision` es el endpoint público
-  de datos de mercado (sólo lectura, sin API key) y sirve los tres endpoints que usamos.
-- Binance devuelve **todos los campos numéricos como string**; el parseo usa
-  `CultureInfo.InvariantCulture` (ver `CoinFilter`).
-- **Pares suspendidos**: los símbolos en estado `BREAK` o `HALT` conservan sus
-  estadísticas de 24h congeladas, así que aparecen como pumps enormes que en realidad
-  no se pueden operar. En una prueba real, 4 de 9 monedas sobre el umbral estaban en
-  `BREAK`. Por eso `OnlyTradingSymbols` viene en `true`.
-- **Cuidado con los defaults de colecciones en la configuración**: el binder de
-  `Microsoft.Extensions.Configuration` hace `Add()` sobre la lista que ya tiene la
-  propiedad, no la reemplaza. `ExtraWindows` arranca en `[]` por eso; si se le pone
-  `["4h", "1h"]` como valor por defecto, termina con los cuatro elementos duplicados.
-- Si Binance no devuelve un símbolo en la respuesta de una ventana, se muestra `0%` y
-  se deja un `AVISO` en consola: sin esa traza es indistinguible de "no se movió".
-- **Enviar a un grupo**: no requiere cambios de código, sólo poner el ID del grupo en
-  `Telegram:ChatId`. Para averiguarlo: agregar el bot al grupo, escribir `/start@<bot>`
-  ahí (con el modo privacidad activado el bot sólo ve mensajes que empiezan con `/` o
-  que lo mencionan) y leer `message.chat.id` de
-  `https://api.telegram.org/bot<TOKEN>/getUpdates`. Si un grupo común se convierte en
-  supergrupo, el ID cambia y hay que actualizarlo.
-- El mensaje usa `parse_mode: HTML`, así que todo texto dinámico pasa por el escapado
-  de `&`, `<`, `>` en `MessageFormatter.Escape`.
-- El token va en la URL de Telegram: no debe aparecer nunca en logs ni en excepciones.
-- Los precios van de decenas de miles a 0.00000001, por eso `FormatPrice` cambia de
-  formato según la magnitud en lugar de usar un número fijo de decimales.
+- **`data-api.binance.vision`, not `api.binance.com`**: the main domain responds with
+  `451 Unavailable For Legal Reasons` from US datacenter IPs, which is where GitHub
+  Actions runners live. `data-api.binance.vision` is Binance's public market-data
+  endpoint (read-only, no API key) and serves all three endpoints this project uses.
+- Binance returns **every numeric field as a string**; parsing uses
+  `CultureInfo.InvariantCulture` (see `CoinFilter`).
+- **Suspended pairs**: symbols in `BREAK` or `HALT` status keep their 24h stats
+  frozen, so they show up as huge pumps that can't actually be traded. In a real test,
+  4 of 9 coins above the threshold were in `BREAK`. That's why `OnlyTradingSymbols`
+  defaults to `true`.
+- **Watch out for collection defaults in configuration**: the
+  `Microsoft.Extensions.Configuration` binder calls `Add()` on the property's existing
+  list instead of replacing it. `ExtraWindows` starts as `[]` for that reason; setting
+  `["4h", "1h"]` as its default would end up with all four values duplicated.
+- If Binance doesn't return a symbol in a window's response, it's shown as `0%` and a
+  `WARN` is logged: without that trace it's indistinguishable from "didn't move".
+- **Sending to a group**: no code changes needed, just put the group's ID in
+  `Telegram:ChatId`. To find it: add the bot to the group, send `/start@<bot>` there
+  (with privacy mode on, the bot only sees messages that start with `/` or mention
+  it), and read `message.chat.id` from
+  `https://api.telegram.org/bot<TOKEN>/getUpdates`. If a regular group is upgraded to
+  a supergroup, the ID changes and needs to be updated.
+- The message uses `parse_mode: HTML`, so all dynamic text goes through the escaping
+  in `MessageFormatter.Escape` (`&`, `<`, `>`).
+- The token is part of the Telegram URL: it must never show up in logs or exceptions.
+- Prices range from the tens of thousands down to 0.00000001, which is why
+  `FormatPrice` switches format based on magnitude instead of using a fixed number of decimals.

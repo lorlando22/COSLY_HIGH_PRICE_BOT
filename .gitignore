@@ -1,5 +1,5 @@
-# Secretos: appsettings.json lleva el token del bot de Telegram.
-# La plantilla sin credenciales (appsettings.example.json) sí se versiona.
+# Secrets: appsettings.json carries the Telegram bot token.
+# The credential-free template (appsettings.ci.json) is version-controlled.
 appsettings.json
 !appsettings.ci.json
 .env
@@ -7,9 +7,9 @@ appsettings.json
 *.key
 *.pem
 
-# Ojo: state/notified-symbols.json SÍ se versiona a propósito — es la memoria del bot
-# entre ejecuciones de GitHub Actions. Las copias locales viven en bin/ y publish/,
-# que ya están ignoradas más abajo.
+# Note: state/notified-symbols.json IS intentionally version-controlled — it's the
+# bot's memory across GitHub Actions runs. Local copies live in bin/ and publish/,
+# already ignored below.
 
 # .NET
 bin/
@@ -29,5 +29,5 @@ Thumbs.db
 Logs/
 *.log
 
-# Config local de Claude Code (por maquina)
+# Local Claude Code config (per machine)
 .claude/settings.local.json

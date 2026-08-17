@@ -3,8 +3,8 @@ using System.Text.Json.Serialization;
 namespace CoslyHighPriceBot.Models;
 
 /// <summary>
-/// Respuesta de /api/v3/ticker/24hr. Binance devuelve todos los valores numéricos
-/// como string, así que el parseo a decimal se hace después (ver <see cref="Coin"/>).
+/// Response from /api/v3/ticker/24hr. Binance returns every numeric value as a string,
+/// so parsing to decimal happens later (see <see cref="Coin"/>).
 /// </summary>
 internal sealed class Ticker24h
 {
@@ -33,7 +33,7 @@ internal sealed class Ticker24h
     public long TradeCount { get; set; }
 }
 
-/// <summary>Respuesta de /api/v3/ticker (ventana móvil); sólo nos interesa la variación.</summary>
+/// <summary>Response from /api/v3/ticker (rolling window); we only care about the change percent.</summary>
 internal sealed class WindowTicker
 {
     [JsonPropertyName("symbol")]
@@ -43,7 +43,7 @@ internal sealed class WindowTicker
     public string PriceChangePercent { get; set; } = "";
 }
 
-/// <summary>Respuesta de /api/v3/exchangeInfo, recortada a lo que usamos.</summary>
+/// <summary>Response from /api/v3/exchangeInfo, trimmed down to what we use.</summary>
 internal sealed class ExchangeInfo
 {
     [JsonPropertyName("symbols")]
@@ -55,15 +55,15 @@ internal sealed class SymbolInfo
     [JsonPropertyName("symbol")]
     public string Symbol { get; set; } = "";
 
-    /// <summary>TRADING, BREAK, HALT... Sólo TRADING se puede operar.</summary>
+    /// <summary>TRADING, BREAK, HALT... Only TRADING can actually be traded.</summary>
     [JsonPropertyName("status")]
     public string Status { get; set; } = "";
 }
 
-/// <summary>Variación de una moneda en una ventana corta (por ejemplo "4h").</summary>
+/// <summary>A coin's change percent over a short window (e.g. "4h").</summary>
 internal sealed record WindowChange(string Window, decimal ChangePercent);
 
-/// <summary>Moneda ya parseada y lista para mostrar.</summary>
+/// <summary>A coin already parsed and ready to display.</summary>
 internal sealed record Coin(
     string Symbol,
     string QuoteAsset,
@@ -75,6 +75,6 @@ internal sealed record Coin(
     decimal QuoteVolume,
     long TradeCount)
 {
-    /// <summary>Variaciones en ventanas cortas, en el orden configurado en Binance:ExtraWindows.</summary>
+    /// <summary>Short-window changes, in the order configured in Binance:ExtraWindows.</summary>
     public IReadOnlyList<WindowChange> WindowChanges { get; init; } = [];
 }

@@ -9,7 +9,7 @@ Console.CancelKeyPress += (_, e) =>
     cts.Cancel();
 };
 
-AppLog.Info("===== Inicio de la ejecución =====");
+AppLog.Info("===== Execution started =====");
 
 int exitCode;
 try
@@ -18,7 +18,7 @@ try
 }
 catch (OperationCanceledException)
 {
-    AppLog.Info("Ejecución cancelada por el usuario.");
+    AppLog.Info("Execution cancelled by the user.");
     exitCode = 1;
 }
 catch (Exception ex)
@@ -27,14 +27,14 @@ catch (Exception ex)
     exitCode = 1;
 }
 
-AppLog.Info($"===== Fin de la ejecución (código {exitCode}) =====");
+AppLog.Info($"===== Execution finished (exit code {exitCode}) =====");
 return exitCode;
 
 async Task<int> RunAsync()
 {
-    // Las variables de entorno van último para que puedan pisar el JSON: es la forma
-    // de pasar el token en la nube sin que quede escrito en ningún archivo.
-    // Se nombran con doble guión bajo, por ejemplo Telegram__BotToken.
+    // Environment variables go last so they can override the JSON: this is how the
+    // token is passed in the cloud without ever being written to a file.
+    // They're named with a double underscore separator, e.g. Telegram__BotToken.
     var configuration = new ConfigurationBuilder()
         .SetBasePath(AppContext.BaseDirectory)
         .AddJsonFile("appsettings.json", optional: false)
@@ -46,7 +46,7 @@ async Task<int> RunAsync()
     var configErrors = settings.Validate();
     if (configErrors.Count > 0)
     {
-        AppLog.Error("Configuración inválida en appsettings.json:");
+        AppLog.Error("Invalid configuration in appsettings.json:");
         foreach (var error in configErrors)
             AppLog.Error($"  - {error}");
         return 1;
@@ -56,7 +56,7 @@ async Task<int> RunAsync()
 
     var store = new NotifiedSymbolStore(ResolvePath(settings.State.NotifiedSymbolsFile));
     var alreadyNotified = store.Load();
-    AppLog.Info($"{alreadyNotified.Count} símbolo(s) avisados en corridas anteriores ({Path.GetFileName(store.FilePath)}).");
+    AppLog.Info($"{alreadyNotified.Count} symbol(s) already notified in previous runs ({Path.GetFileName(store.FilePath)}).");
 
     using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
     http.DefaultRequestHeaders.UserAgent.ParseAdd("CoslyHighPriceBot/1.0");
@@ -64,12 +64,12 @@ async Task<int> RunAsync()
     var binance = new BinanceClient(http, settings.Binance);
     var telegram = new TelegramNotifier(http, settings.Telegram);
 
-    AppLog.Info("Consultando el ticker de 24h de Binance...");
+    AppLog.Info("Fetching Binance's 24h ticker...");
     var tickers = await binance.GetAllTickersAsync(cts.Token);
 
     var quoteAsset = settings.Binance.QuoteAsset;
     var threshold = settings.Filter.MinChangePercent;
-    AppLog.Info($"{tickers.Count} símbolos recibidos, {CoinFilter.CountQuotePairs(tickers, quoteAsset)} son pares {quoteAsset}.");
+    AppLog.Info($"{tickers.Count} symbols received, {CoinFilter.CountQuotePairs(tickers, quoteAsset)} are {quoteAsset} pairs.");
 
     var coins = CoinFilter.Filter(tickers, quoteAsset, threshold);
 
@@ -79,29 +79,29 @@ async Task<int> RunAsync()
         var suspended = coins.Where(c => !tradingSymbols.Contains(c.Symbol)).ToList();
 
         foreach (var coin in suspended)
-            AppLog.Info($"{coin.Symbol} superó el umbral pero no está operable (trading suspendido): se descarta.");
+            AppLog.Info($"{coin.Symbol} exceeded the threshold but isn't tradable (trading suspended): discarded.");
 
         coins = [.. coins.Where(c => tradingSymbols.Contains(c.Symbol))];
     }
 
-    // Estado nuevo: exactamente las que hoy superan el umbral. Las que ya no aparecen
-    // se olvidan, así vuelven a avisar si más adelante repiten el pump.
+    // New state: exactly the symbols that are above the threshold today. The ones no
+    // longer present are forgotten, so they'll be notified again if they pump again later.
     var currentSymbols = coins.Select(c => c.Symbol).ToHashSet(StringComparer.Ordinal);
 
     foreach (var symbol in alreadyNotified.Where(s => !currentSymbols.Contains(s)))
-        AppLog.Info($"{symbol} ya no supera el umbral (+{threshold:0.##}%): se elimina del archivo de avisados.");
+        AppLog.Info($"{symbol} no longer exceeds the threshold (+{threshold:0.##}%): removed from the notified-symbols file.");
 
     var repeated = coins.Where(c => alreadyNotified.Contains(c.Symbol)).ToList();
     if (repeated.Count > 0)
-        AppLog.Info($"Ya avisadas, se omiten: {string.Join(", ", repeated.Select(c => c.Symbol))}");
+        AppLog.Info($"Already notified, skipped: {string.Join(", ", repeated.Select(c => c.Symbol))}");
 
     var toNotify = coins.Where(c => !alreadyNotified.Contains(c.Symbol)).ToList();
     if (toNotify.Count == 0)
     {
         store.Save(currentSymbols);
         AppLog.Info(coins.Count == 0
-            ? $"Ninguna moneda superó el umbral (+{threshold:0.##}%). No se envía nada a Telegram."
-            : "Ninguna moneda nueva superó el umbral. No se envía nada a Telegram.");
+            ? $"No coin exceeded the threshold (+{threshold:0.##}%). Nothing sent to Telegram."
+            : "No new coin exceeded the threshold. Nothing sent to Telegram.");
         return 0;
     }
 
@@ -111,7 +111,7 @@ async Task<int> RunAsync()
         cts.Token);
     toNotify = [.. toNotify.Select(c => c with { WindowChanges = windowChanges[c.Symbol] })];
 
-    AppLog.Info($"{toNotify.Count} moneda(s) nueva(s) por encima del umbral (+{threshold:0.##}%):");
+    AppLog.Info($"{toNotify.Count} new coin(s) above the threshold (+{threshold:0.##}%):");
     foreach (var coin in toNotify)
     {
         var windows = string.Join("  ", coin.WindowChanges.Select(w => $"{w.Window}: {w.ChangePercent,8:+0.00;-0.00}%"));
@@ -123,14 +123,14 @@ async Task<int> RunAsync()
         await telegram.SendAsync(message, cts.Token);
 
     foreach (var coin in toNotify)
-        AppLog.Info($"{coin.Symbol} superó el umbral (+{coin.ChangePercent:0.00}% en 24h): avisado por Telegram.");
+        AppLog.Info($"{coin.Symbol} exceeded the threshold (+{coin.ChangePercent:0.00}% in 24h): notified via Telegram.");
 
-    // Se guarda recién ahora: si el envío falla, la próxima corrida tiene que reintentar.
+    // Only saved now: if the send fails, the next run has to retry.
     store.Save(currentSymbols);
-    AppLog.Info($"{currentSymbols.Count} símbolo(s) recordados para no repetir el aviso.");
+    AppLog.Info($"{currentSymbols.Count} symbol(s) remembered to avoid repeating the alert.");
     return 0;
 }
 
-/// <summary>Las rutas relativas se resuelven contra el ejecutable, no contra el directorio de trabajo.</summary>
+/// <summary>Relative paths are resolved against the executable, not the working directory.</summary>
 static string ResolvePath(string path) =>
     Path.IsPathRooted(path) ? path : Path.Combine(AppContext.BaseDirectory, path);

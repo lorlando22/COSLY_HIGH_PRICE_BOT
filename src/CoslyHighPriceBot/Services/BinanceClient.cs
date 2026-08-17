@@ -5,20 +5,20 @@ using CoslyHighPriceBot.Models;
 
 namespace CoslyHighPriceBot.Services;
 
-/// <summary>Lee precios y metadatos de la API pública de Binance.</summary>
+/// <summary>Reads prices and metadata from Binance's public API.</summary>
 internal sealed class BinanceClient(HttpClient http, BinanceOptions options)
 {
     /// <summary>
-    /// Trae el ticker de 24h de todos los símbolos del exchange (unos 3.000, varios MB).
-    /// Es una única llamada por ejecución, así que no vale la pena paginar ni filtrar del lado del servidor.
+    /// Fetches the 24h ticker for every symbol on the exchange (about 3,000, several MB).
+    /// It's a single call per run, so there's no point paginating or filtering server-side.
     /// </summary>
     public async Task<IReadOnlyList<Ticker24h>> GetAllTickersAsync(CancellationToken cancellationToken)
     {
         var tickers = await GetJsonAsync<List<Ticker24h>>(options.Ticker24hUrl, cancellationToken);
-        return tickers ?? throw new InvalidOperationException("Binance devolvió una respuesta vacía.");
+        return tickers ?? throw new InvalidOperationException("Binance returned an empty response.");
     }
 
-    /// <summary>Devuelve, de los símbolos indicados, cuáles están en estado TRADING.</summary>
+    /// <summary>Of the given symbols, returns which ones are in TRADING status.</summary>
     public async Task<IReadOnlySet<string>> GetTradingSymbolsAsync(
         IReadOnlyCollection<string> symbols,
         CancellationToken cancellationToken)
@@ -36,9 +36,9 @@ internal sealed class BinanceClient(HttpClient http, BinanceOptions options)
     }
 
     /// <summary>
-    /// Variación de cada símbolo en las ventanas pedidas (por ejemplo "4h" y "1h").
-    /// Una llamada por ventana, con todos los símbolos juntos. Los símbolos sin operaciones
-    /// en la ventana devuelven 0, que es el valor que Binance reporta.
+    /// Change percent for each symbol across the requested windows (e.g. "4h" and "1h").
+    /// One call per window, with all symbols batched together. Symbols with no trades in
+    /// the window come back as 0, which is the value Binance reports.
     /// </summary>
     public async Task<IReadOnlyDictionary<string, IReadOnlyList<WindowChange>>> GetWindowChangesAsync(
         IReadOnlyCollection<string> symbols,
@@ -58,11 +58,11 @@ internal sealed class BinanceClient(HttpClient http, BinanceOptions options)
                 .Where(t => result.ContainsKey(t.Symbol))
                 .ToDictionary(t => t.Symbol, ParseChangePercent, StringComparer.Ordinal);
 
-            // Un símbolo ausente de la respuesta se muestra como 0%, igual que uno sin operaciones.
-            // Se avisa por consola porque son dos situaciones distintas y sin traza no hay forma de distinguirlas.
+            // A symbol missing from the response is shown as 0%, same as one with no trades.
+            // It's logged because these are two different situations and without a trace there's no way to tell them apart.
             var missing = result.Keys.Where(s => !bySymbol.ContainsKey(s)).ToList();
             if (missing.Count > 0)
-                AppLog.Warn($"Binance no devolvió datos de {window} para: {string.Join(", ", missing)}. Se muestran como 0%.");
+                AppLog.Warn($"Binance returned no {window} data for: {string.Join(", ", missing)}. Shown as 0%.");
 
             foreach (var (symbol, changes) in result)
                 changes.Add(new WindowChange(window, bySymbol.GetValueOrDefault(symbol)));
@@ -81,21 +81,21 @@ internal sealed class BinanceClient(HttpClient http, BinanceOptions options)
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
             return await JsonSerializer.DeserializeAsync<T>(stream, cancellationToken: cancellationToken);
         }
-        // El timeout de HttpClient también llega como TaskCanceledException, pero un Ctrl+C
-        // tiene que seguir de largo para que se reporte como cancelación y no como error.
+        // HttpClient's timeout also arrives as TaskCanceledException, but a Ctrl+C has to
+        // pass through so it's reported as a cancellation, not an error.
         catch (Exception ex) when (ex is HttpRequestException or JsonException
                                    || (ex is TaskCanceledException && !cancellationToken.IsCancellationRequested))
         {
-            // Se agrega el contexto para que el log diga que el problema fue con Binance
-            // y no una excepción suelta sin origen.
-            throw new InvalidOperationException($"Error consultando Binance ({SafeUrl(url)}): {ex.Message}", ex);
+            // Context is added so the log says the problem was with Binance instead of
+            // showing a bare, unattributed exception.
+            throw new InvalidOperationException($"Error querying Binance ({SafeUrl(url)}): {ex.Message}", ex);
         }
     }
 
-    /// <summary>Recorta la query string, que puede traer la lista completa de símbolos.</summary>
+    /// <summary>Trims the query string, which can carry the full list of symbols.</summary>
     private static string SafeUrl(string url) => url.Split('?')[0];
 
-    /// <summary>Binance espera el parámetro symbols como un array JSON dentro de la query string.</summary>
+    /// <summary>Binance expects the symbols parameter as a JSON array inside the query string.</summary>
     private static string EncodeSymbols(IReadOnlyCollection<string> symbols) =>
         Uri.EscapeDataString(JsonSerializer.Serialize(symbols));
 
