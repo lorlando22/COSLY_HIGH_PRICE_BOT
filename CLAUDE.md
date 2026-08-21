@@ -63,23 +63,38 @@ the `pumps-<yyyy-MM-dd>.log` pattern are left untouched.
 
 ## One alert per symbol
 
-Every notified symbol is saved to its kind's state file and won't be notified again
-while it stays above its threshold. Once it drops, it's removed from the file, so if it
-pumps again later it gets notified again.
+Each state file maps symbol to **when its Telegram message went out**:
 
-Each kind runs this cycle independently:
+```json
+{ "HEMIUSDT": "2026-08-21T13:22:04+00:00" }
+```
 
-1. Read the file (if it doesn't exist, start with an empty list).
-2. Compute the symbols of that kind that are above their threshold today and tradable.
-3. Remove from the file the ones no longer in that list.
-4. Notify only the ones that weren't already in the file.
-5. Save the file with the symbols from step 2.
+A symbol's entry survives while **either** of these holds, and only disappears when both
+stop being true:
+
+- it's still above its threshold, or
+- its `Filter:CooldownHours` cooldown (8h by default) hasn't expired yet.
+
+Two rules fall out of that:
+
+- **A sustained pump produces one message.** A coin three days above +100% is announced
+  once, because its entry never leaves the file.
+- **Flapping produces one message.** A coin that crosses the threshold, dips, and crosses
+  again minutes later stays in the file the whole time, so it isn't re-announced. This is
+  the reason the cooldown exists: before it, the dip erased the memory and the second
+  crossing counted as new, producing two or three messages for the same coin.
+
+**The timestamp is never refreshed.** It records when the message was sent, not when the
+coin was last seen. Refreshing it would keep a sustained pump in cooldown forever, and
+would rewrite the file on every run — which in the cloud means a git commit every 15
+minutes.
 
 Saving happens **after** sending: if Telegram fails, the run ends with exit code `1`
 without recording anything, and the next run retries. Because each kind saves its own
 file right after its own send, a failure sending one kind doesn't discard the other's
 progress. A corrupted file doesn't crash the program — it's logged, ignored, and
-rewritten (the cost is a possible duplicate alert).
+rewritten (the cost is a possible duplicate alert). A file still in the old array-only
+format is migrated on read, stamping the current time on each symbol.
 
 ## Running it
 
@@ -120,6 +135,7 @@ Every adjustable value lives in `src/CoslyHighPriceBot/appsettings.json`:
 | `Binance:OnlyTradingSymbols` | Discards suspended pairs (see below). |
 | `Filter:MinChangePercent` | Minimum 24h gain, in %, for **crypto**. |
 | `Filter:StockMinChangePercent` | Minimum 24h gain, in %, for **tokenized stocks**. |
+| `Filter:CooldownHours` | Hours before the same symbol can be alerted again. `0` disables it. |
 | `State:NotifiedSymbolsFile` | Already-notified crypto. Relative = next to the executable. |
 | `State:NotifiedStocksFile` | Already-notified tokenized stocks. Must differ from the above. |
 | `State:TokenizedStocksFile` | Read-only catalog of tokenized-stock base assets. |
@@ -146,7 +162,7 @@ This is how the token is passed in the cloud without writing it to any file.
 every 15 minutes without depending on any machine being on.
 
 It needs two secrets in the repo (Settings → Secrets and variables → Actions):
-`TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`.
+`TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_IDS`.
 
 The state lives in `state/notified-symbols.json` and `state/notified-stocks.json`,
 **version-controlled on purpose**: it's the only way for the bot's memory to survive
@@ -177,7 +193,8 @@ src/CoslyHighPriceBot/
    ├─ CoinFilter.cs              classifies by kind and applies each kind's threshold
    ├─ MessageFormatter.cs        HTML message text, split if it exceeds 4096 chars
    ├─ TelegramNotifier.cs        POST to sendMessage
-   ├─ SymbolSetStore.cs          reads/writes the three JSON symbol files
+   ├─ SymbolSetStore.cs          reads the tokenized-stock catalog
+   ├─ AlertHistoryStore.cs       reads/writes symbol -> last-alerted timestamp
    └─ AppLog.cs                  console + daily file in Logs/
 ```
 

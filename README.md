@@ -12,8 +12,10 @@ It tracks **two kinds of asset separately**, because they don't move on the same
 | Tokenized stocks | +20% in 24h | 📈 Tokenized Stocks | `notified-stocks.json` |
 
 If nothing crosses its threshold, **no message is sent** — the run just logs that
-nothing matched and exits cleanly. Symbols already notified aren't repeated until they
-drop back below their threshold first.
+nothing matched and exits cleanly. A symbol is announced once and then held quiet: while
+it stays above its threshold, and for a configurable cooldown (8h by default) after the
+alert. That cooldown is what stops a coin that dips and re-crosses the threshold minutes
+later from being announced two or three times.
 
 Runs as a one-shot process, so it fits equally well in a Windows Task Scheduler job
 or a GitHub Actions cron — no server, no database, no background process to keep alive.
@@ -25,7 +27,8 @@ or a GitHub Actions cron — no server, no database, no background process to ke
   applies a much lower threshold to them, since a +15% day for a stock is exceptional
 - Skips symbols with suspended trading (`BREAK`/`HALT`), which would otherwise show
   up as huge, untradeable "pumps"
-- Sends a single alert per symbol — no repeats while it stays above its threshold
+- Sends a single alert per symbol — no repeats while it stays above its threshold,
+  plus a cooldown (8h by default) so a dip-and-recross doesn't re-announce it
 - Daily rotating log file with automatic retention cleanup
 - Everything configurable via `appsettings.json` or environment variables (for secrets)
 - Ready-to-use GitHub Actions workflow to run every 15 minutes for free
@@ -100,6 +103,7 @@ Every adjustable value lives in `appsettings.json`:
 | `Binance:OnlyTradingSymbols` | Discards suspended pairs (recommended: `true`). |
 | `Filter:MinChangePercent` | Minimum 24h gain, in %, for crypto. |
 | `Filter:StockMinChangePercent` | Minimum 24h gain, in %, for tokenized stocks. |
+| `Filter:CooldownHours` | Hours before the same symbol can be alerted again. `0` disables it. |
 | `State:NotifiedSymbolsFile` | Tracks already-notified crypto. |
 | `State:NotifiedStocksFile` | Tracks already-notified tokenized stocks. |
 | `State:TokenizedStocksFile` | Read-only catalog of tokenized-stock base assets. |
@@ -123,7 +127,7 @@ runs the bot every 15 minutes without needing any machine to stay on.
 1. Fork or push this repo to GitHub — **keep it public** so Actions minutes are free
    (2,880 runs/month exceeds the private-repo free tier).
 2. Add two repository secrets (Settings → Secrets and variables → Actions):
-   `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`.
+   `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_IDS`.
 3. Trigger it once manually from the Actions tab to confirm it works, or just wait
    for the next scheduled run.
 
@@ -162,7 +166,8 @@ src/CoslyHighPriceBot/
    ├─ CoinFilter.cs              classifies by kind and applies each kind's threshold
    ├─ MessageFormatter.cs        HTML message text, split if it exceeds 4096 chars
    ├─ TelegramNotifier.cs        POST to sendMessage
-   ├─ SymbolSetStore.cs          reads/writes the three JSON symbol files
+   ├─ SymbolSetStore.cs          reads the tokenized-stock catalog
+   ├─ AlertHistoryStore.cs       reads/writes symbol -> last-alerted timestamp
    └─ AppLog.cs                  console + daily file in Logs/
 ```
 

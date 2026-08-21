@@ -29,6 +29,9 @@ internal sealed class AppSettings
         if (Filter.StockMinChangePercent <= 0)
             errors.Add("Filter:StockMinChangePercent must be greater than 0.");
 
+        if (Filter.CooldownHours < 0 || double.IsNaN(Filter.CooldownHours))
+            errors.Add("Filter:CooldownHours cannot be negative (0 = no cooldown).");
+
         if (!Uri.TryCreate(Telegram.ApiBaseUrl, UriKind.Absolute, out _))
             errors.Add("Telegram:ApiBaseUrl must be an absolute URL.");
 
@@ -85,6 +88,13 @@ internal sealed class FilterOptions
     /// — a real +15% day is exceptional — so they need a much lower threshold to be useful.
     /// </summary>
     public decimal StockMinChangePercent { get; set; } = 20m;
+
+    /// <summary>
+    /// Hours to wait before alerting about the same symbol again. Without it, a coin that
+    /// crosses the threshold, dips and crosses again counts as new every time and gets
+    /// announced two or three times. 0 disables the cooldown. Fractional values are allowed.
+    /// </summary>
+    public double CooldownHours { get; set; } = 8;
 }
 
 internal sealed class StateOptions

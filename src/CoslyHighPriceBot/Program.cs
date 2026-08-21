@@ -62,8 +62,8 @@ async Task<int> RunAsync()
     else
         AppLog.Info($"{tokenizedStockAssets.Count} tokenized stock asset(s) loaded from {catalog.FileName}.");
 
-    var cryptoStore = new SymbolSetStore(ResolvePath(settings.State.NotifiedSymbolsFile));
-    var stockStore = new SymbolSetStore(ResolvePath(settings.State.NotifiedStocksFile));
+    var cryptoStore = new AlertHistoryStore(ResolvePath(settings.State.NotifiedSymbolsFile));
+    var stockStore = new AlertHistoryStore(ResolvePath(settings.State.NotifiedStocksFile));
     var notifiedCrypto = cryptoStore.Load();
     var notifiedStocks = stockStore.Load();
     AppLog.Info($"Already notified in previous runs: {notifiedCrypto.Count} crypto ({cryptoStore.FileName}), {notifiedStocks.Count} stock(s) ({stockStore.FileName}).");
@@ -109,26 +109,46 @@ async Task<int> RunAsync()
 
     return 0;
 
-    async Task<int> NotifyGroupAsync(CoinKind kind, decimal threshold, SymbolSetStore store, IReadOnlySet<string> alreadyNotified)
+    async Task<int> NotifyGroupAsync(CoinKind kind, decimal threshold, AlertHistoryStore store, IReadOnlyDictionary<string, DateTimeOffset> alreadyNotified)
     {
         var label = kind == CoinKind.TokenizedStock ? "tokenized stock" : "crypto";
         var group = coins.Where(c => c.Kind == kind).ToList();
+        var aboveThreshold = group.Select(c => c.Symbol).ToHashSet(StringComparer.Ordinal);
 
-        // New state: exactly the symbols of this kind above the threshold today. The ones
-        // no longer present are forgotten, so they'll be notified again if they pump again.
-        var currentSymbols = group.Select(c => c.Symbol).ToHashSet(StringComparer.Ordinal);
+        var now = DateTimeOffset.UtcNow;
+        var cooldown = TimeSpan.FromHours(settings.Filter.CooldownHours);
 
-        foreach (var symbol in alreadyNotified.Where(s => !currentSymbols.Contains(s)))
-            AppLog.Info($"{symbol} no longer exceeds the {label} threshold (+{threshold:0.##}%): removed from {store.FileName}.");
+        // An entry survives while the symbol is still above the threshold OR while its
+        // cooldown is running. Dropping below the threshold no longer clears the memory on
+        // its own — that's what let a quick dip and re-cross produce a duplicate alert.
+        var history = new Dictionary<string, DateTimeOffset>(StringComparer.Ordinal);
+        foreach (var (symbol, notifiedAt) in alreadyNotified)
+        {
+            var elapsed = now - notifiedAt;
 
-        var repeated = group.Where(c => alreadyNotified.Contains(c.Symbol)).ToList();
+            if (aboveThreshold.Contains(symbol))
+            {
+                history[symbol] = notifiedAt;
+            }
+            else if (elapsed < cooldown)
+            {
+                history[symbol] = notifiedAt;
+                AppLog.Info($"{symbol} is below the {label} threshold but within the {settings.Filter.CooldownHours:0.##}h cooldown (notified {elapsed.TotalHours:0.0}h ago): kept.");
+            }
+            else
+            {
+                AppLog.Info($"{symbol} no longer exceeds the {label} threshold (+{threshold:0.##}%) and its cooldown expired: removed from {store.FileName}.");
+            }
+        }
+
+        var repeated = group.Where(c => history.ContainsKey(c.Symbol)).ToList();
         if (repeated.Count > 0)
             AppLog.Info($"Already notified {label}, skipped: {string.Join(", ", repeated.Select(c => c.Symbol))}");
 
-        var toNotify = group.Where(c => !alreadyNotified.Contains(c.Symbol)).ToList();
+        var toNotify = group.Where(c => !history.ContainsKey(c.Symbol)).ToList();
         if (toNotify.Count == 0)
         {
-            store.Save(currentSymbols);
+            store.Save(history);
             return 0;
         }
 
@@ -140,12 +160,18 @@ async Task<int> RunAsync()
         foreach (var message in messages)
             await telegram.SendAsync(message, cts.Token);
 
+        // The timestamp records when the message went out and is never refreshed later:
+        // refreshing it would extend the cooldown forever on a sustained pump, and would
+        // rewrite the file on every run — one git commit every 15 minutes in the cloud.
         foreach (var coin in toNotify)
+        {
+            history[coin.Symbol] = now;
             AppLog.Info($"{coin.Symbol} exceeded the {label} threshold (+{coin.ChangePercent:0.00}% in 24h): notified via Telegram.");
+        }
 
         // Only saved now: if the send fails, the next run has to retry.
-        store.Save(currentSymbols);
-        AppLog.Info($"{currentSymbols.Count} {label} symbol(s) remembered in {store.FileName}.");
+        store.Save(history);
+        AppLog.Info($"{history.Count} {label} symbol(s) remembered in {store.FileName}.");
         return messages.Count;
     }
 }
