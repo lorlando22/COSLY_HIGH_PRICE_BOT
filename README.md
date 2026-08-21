@@ -106,7 +106,7 @@ Every adjustable value lives in `appsettings.json`:
 | `Logging:RetentionDays` | Days of logs to keep. `0` = keep them all. |
 | `Telegram:ApiBaseUrl` | Bot API base URL. |
 | `Telegram:BotToken` | Your bot's token. **Secret — never commit this.** |
-| `Telegram:ChatId` | Destination chat. Private = positive ID; group = **negative**. |
+| `Telegram:ChatIds` | Comma-separated destination chats. Private = positive ID; group/channel = **negative**. |
 
 Any key can be overridden with an environment variable using a double underscore as
 the separator, e.g. `Telegram__BotToken`, `Filter__StockMinChangePercent`. This is how

@@ -36,7 +36,7 @@ jobs:
       - name: Find pumps and alert
         env:
           Telegram__BotToken: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          Telegram__ChatId: ${{ secrets.TELEGRAM_CHAT_ID }}
+          Telegram__ChatIds: ${{ secrets.TELEGRAM_CHAT_IDS }}
           # Absolute paths inside the repo so the state stays version-controlled.
           State__NotifiedSymbolsFile: ${{ github.workspace }}/state/notified-symbols.json
           State__NotifiedStocksFile: ${{ github.workspace }}/state/notified-stocks.json

@@ -35,8 +35,8 @@ internal sealed class AppSettings
         if (string.IsNullOrWhiteSpace(Telegram.BotToken))
             errors.Add("Telegram:BotToken cannot be empty.");
 
-        if (string.IsNullOrWhiteSpace(Telegram.ChatId))
-            errors.Add("Telegram:ChatId cannot be empty.");
+        if (Telegram.GetChatIds().Count == 0)
+            errors.Add("Telegram:ChatIds cannot be empty.");
 
         if (string.IsNullOrWhiteSpace(State.NotifiedSymbolsFile))
             errors.Add("State:NotifiedSymbolsFile cannot be empty.");
@@ -118,5 +118,14 @@ internal sealed class TelegramOptions
 {
     public string ApiBaseUrl { get; set; } = "https://api.telegram.org";
     public string BotToken { get; set; } = "";
-    public string ChatId { get; set; } = "";
+
+    /// <summary>
+    /// Comma-separated destination chats; the same message is sent to every one of them.
+    /// A single string (not a JSON array) so a single environment variable or secret can
+    /// override it, e.g. Telegram__ChatIds="-100111,-100222".
+    /// </summary>
+    public string ChatIds { get; set; } = "";
+
+    public IReadOnlyList<string> GetChatIds() =>
+        ChatIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 }

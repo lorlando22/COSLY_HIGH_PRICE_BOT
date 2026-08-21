@@ -126,7 +126,7 @@ Every adjustable value lives in `src/CoslyHighPriceBot/appsettings.json`:
 | `Logging:RetentionDays` | Days of logs to keep. `0` = never delete any. |
 | `Telegram:ApiBaseUrl` | Bot API base URL. |
 | `Telegram:BotToken` | Bot token. **Secret.** |
-| `Telegram:ChatId` | Destination chat. Private = positive ID; group/supergroup = **negative**. |
+| `Telegram:ChatIds` | Comma-separated destination chats; the same message goes to each. Private = positive ID; group/supergroup/channel = **negative**. |
 
 `appsettings.json` is in `.gitignore` because it contains the token.
 
@@ -210,12 +210,18 @@ No DI or Generic Host: it's a single-shot program and doesn't need either.
   `Microsoft.Extensions.Configuration` binder calls `Add()` on the property's existing
   list instead of replacing it, so a `List<T>` option must never be given a non-empty
   default — the JSON values get appended to it rather than replacing it.
-- **Sending to a group**: no code changes needed, just put the group's ID in
-  `Telegram:ChatId`. To find it: add the bot to the group, send `/start@<bot>` there
-  (with privacy mode on, the bot only sees messages that start with `/` or mention
-  it), and read `message.chat.id` from
-  `https://api.telegram.org/bot<TOKEN>/getUpdates`. If a regular group is upgraded to
-  a supergroup, the ID changes and needs to be updated.
+- **Sending to a group or several destinations at once**: no code changes needed, just
+  list the IDs in `Telegram:ChatIds`, comma-separated (`"-100111,-100222"`). Each
+  configured message (crypto, tokenized stocks) is sent once per chat in that list. To
+  find a group's or channel's ID: add the bot as a member (a channel needs it as
+  admin), send `/start@<bot>` there for a group (with privacy mode on, the bot only
+  sees messages that start with `/` or mention it; not needed for a channel post), and
+  read `message.chat.id` from `https://api.telegram.org/bot<TOKEN>/getUpdates`. If a
+  regular group is upgraded to a supergroup, the ID changes and needs to be updated.
+- **Multi-chat send stops at the first failure**: if chat 1 succeeds and chat 2 fails,
+  the run exits with code `1` and doesn't save state, so the next run retries — which
+  resends to chat 1 too. That's a deliberate trade-off: a rare duplicate is safer than
+  silently never reaching a configured destination.
 - The message uses `parse_mode: HTML`, so all dynamic text goes through the escaping
   in `MessageFormatter.Escape` (`&`, `<`, `>`).
 - The token is part of the Telegram URL: it must never show up in logs or exceptions.
