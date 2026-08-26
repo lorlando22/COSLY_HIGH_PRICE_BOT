@@ -1,7 +1,6 @@
 name: Geo check (temporary)
 
-# One-off diagnostic: hunts for ANY Binance futures host reachable from a GitHub runner.
-# Delete once it has answered.
+# One-off diagnostic: can www.binance.com serve real futures data from a GitHub runner?
 on:
   workflow_dispatch:
 
@@ -9,29 +8,21 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Probe futures hosts
+      - name: Probe www.binance.com futures endpoints
         run: |
-          probe() {
-            code=$(curl -sL -o /tmp/body -w '%{http_code}' --max-time 20 "$1" || echo "ERR")
-            size=$(stat -c%s /tmp/body 2>/dev/null || echo 0)
-            printf 'RESULT %-58s -> %-6s bytes=%s\n' "$1" "$code" "$size"
-          }
-          for u in \
-            "https://fapi.binance.com/fapi/v1/ping" \
-            "https://fapi1.binance.com/fapi/v1/ping" \
-            "https://fapi2.binance.com/fapi/v1/ping" \
-            "https://fapi3.binance.com/fapi/v1/ping" \
-            "https://dapi.binance.com/dapi/v1/ping" \
-            "https://www.binance.com/fapi/v1/ping" \
-            "https://futures.binance.com/fapi/v1/ping" \
-            "https://api.binance.com/api/v3/ping" \
-            "https://api-gcp.binance.com/api/v3/ping" \
-            "https://data-api.binance.vision/api/v3/ping"
-          do
-            probe "$u"
-          done
-          echo "--- real futures data attempt (BTRUSDT ticker) ---"
-          for h in "https://fapi.binance.com" "https://fapi1.binance.com" "https://fapi2.binance.com" "https://fapi3.binance.com"; do
-            code=$(curl -sL -o /tmp/t -w '%{http_code}' --max-time 20 "$h/fapi/v1/ticker/24hr?symbol=BTRUSDT" || echo ERR)
-            printf 'TICKER %-32s -> %s : %s\n' "$h" "$code" "$(head -c 160 /tmp/t)"
-          done
+          B=https://www.binance.com
+
+          echo "--- ticker/24hr for BTRUSDT ---"
+          code=$(curl -sL -o /tmp/t -w '%{http_code}' --max-time 25 "$B/fapi/v1/ticker/24hr?symbol=BTRUSDT")
+          echo "http=$code"; head -c 300 /tmp/t; echo
+
+          echo "--- ticker/24hr full list (size + count) ---"
+          code=$(curl -sL -o /tmp/all -w '%{http_code}' --max-time 40 "$B/fapi/v1/ticker/24hr")
+          echo "http=$code bytes=$(stat -c%s /tmp/all)"
+          echo "symbols: $(grep -o '"symbol"' /tmp/all | wc -l)"
+
+          echo "--- exchangeInfo (size + TRADIFI count) ---"
+          code=$(curl -sL -o /tmp/ei -w '%{http_code}' --max-time 40 "$B/fapi/v1/exchangeInfo")
+          echo "http=$code bytes=$(stat -c%s /tmp/ei)"
+          echo "TRADIFI_PERPETUAL: $(grep -o 'TRADIFI_PERPETUAL' /tmp/ei | wc -l)"
+          echo "PERPETUAL total:   $(grep -o '"contractType":"PERPETUAL"' /tmp/ei | wc -l)"
