@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace CoslyHighPriceBot.Models;
 
 /// <summary>
-/// Response from /api/v3/ticker/24hr. Binance returns every numeric value as a string,
+/// Response from /fapi/v1/ticker/24hr. Binance returns every numeric value as a string,
 /// so parsing to decimal happens later (see <see cref="Coin"/>).
 /// </summary>
 internal sealed class Ticker24h
@@ -33,7 +33,7 @@ internal sealed class Ticker24h
     public long TradeCount { get; set; }
 }
 
-/// <summary>Response from /api/v3/exchangeInfo, trimmed down to what we use.</summary>
+/// <summary>Response from /fapi/v1/exchangeInfo, trimmed down to what we use.</summary>
 internal sealed class ExchangeInfo
 {
     [JsonPropertyName("symbols")]
@@ -45,9 +45,18 @@ internal sealed class SymbolInfo
     [JsonPropertyName("symbol")]
     public string Symbol { get; set; } = "";
 
-    /// <summary>TRADING, BREAK, HALT... Only TRADING can actually be traded.</summary>
+    /// <summary>TRADING, SETTLING, PENDING_TRADING... Only TRADING can actually be traded.</summary>
     [JsonPropertyName("status")]
     public string Status { get; set; } = "";
+
+    /// <summary>
+    /// PERPETUAL for crypto, TRADIFI_PERPETUAL for tokenized equities, commodities and
+    /// other traditional-finance instruments. This is the field that classifies a symbol,
+    /// and the reason the bot reads futures instead of spot: spot has no equivalent.
+    /// Quarterly contracts use CURRENT_QUARTER / NEXT_QUARTER.
+    /// </summary>
+    [JsonPropertyName("contractType")]
+    public string ContractType { get; set; } = "";
 }
 
 /// <summary>
@@ -63,13 +72,15 @@ internal enum CoinKind
 /// <summary>A coin already parsed and ready to display.</summary>
 internal sealed record Coin(
     string Symbol,
-    string BaseAsset,
     string QuoteAsset,
-    CoinKind Kind,
     decimal ChangePercent,
     decimal LastPrice,
     decimal OpenPrice,
     decimal HighPrice,
     decimal LowPrice,
     decimal QuoteVolume,
-    long TradeCount);
+    long TradeCount)
+{
+    /// <summary>Set once the symbol's contract type is known (see <see cref="SymbolInfo"/>).</summary>
+    public CoinKind Kind { get; init; } = CoinKind.Crypto;
+}

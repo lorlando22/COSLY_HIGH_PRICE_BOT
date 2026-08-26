@@ -55,13 +55,6 @@ async Task<int> RunAsync()
 
     AppLog.DeleteOldFiles(settings.Logging.RetentionDays);
 
-    var catalog = new SymbolSetStore(ResolvePath(settings.State.TokenizedStocksFile));
-    var tokenizedStockAssets = catalog.Load();
-    if (tokenizedStockAssets.Count == 0)
-        AppLog.Warn($"{catalog.FileName} is missing or empty: every symbol will be treated as crypto.");
-    else
-        AppLog.Info($"{tokenizedStockAssets.Count} tokenized stock asset(s) loaded from {catalog.FileName}.");
-
     var cryptoStore = new AlertHistoryStore(ResolvePath(settings.State.NotifiedSymbolsFile));
     var stockStore = new AlertHistoryStore(ResolvePath(settings.State.NotifiedStocksFile));
     var notifiedCrypto = cryptoStore.Load();
@@ -74,7 +67,7 @@ async Task<int> RunAsync()
     var binance = new BinanceClient(http, settings.Binance);
     var telegram = new TelegramNotifier(http, settings.Telegram);
 
-    AppLog.Info("Fetching Binance's 24h ticker...");
+    AppLog.Info("Fetching Binance's futures 24h ticker...");
     var tickers = await binance.GetAllTickersAsync(cts.Token);
 
     var quoteAsset = settings.Binance.QuoteAsset;
@@ -82,17 +75,21 @@ async Task<int> RunAsync()
     var stockThreshold = settings.Filter.StockMinChangePercent;
     AppLog.Info($"{tickers.Count} symbols received, {CoinFilter.CountQuotePairs(tickers, quoteAsset)} are {quoteAsset} pairs.");
 
-    var coins = CoinFilter.Filter(tickers, quoteAsset, cryptoThreshold, stockThreshold, tokenizedStockAssets);
+    // First pass uses the lower of the two thresholds, since a symbol's kind — and so the
+    // threshold that really applies — isn't known until exchangeInfo has been read.
+    var candidates = CoinFilter.FindCandidates(tickers, quoteAsset, Math.Min(cryptoThreshold, stockThreshold));
 
-    if (coins.Count > 0 && settings.Binance.OnlyTradingSymbols)
+    IReadOnlyList<Coin> coins = [];
+    if (candidates.Count > 0)
     {
-        var tradingSymbols = await binance.GetTradingSymbolsAsync([.. coins.Select(c => c.Symbol)], cts.Token);
-        var suspended = coins.Where(c => !tradingSymbols.Contains(c.Symbol)).ToList();
+        AppLog.Info($"{candidates.Count} symbol(s) above the lower threshold (+{Math.Min(cryptoThreshold, stockThreshold):0.##}%); fetching exchangeInfo to classify them...");
 
-        foreach (var coin in suspended)
-            AppLog.Info($"{coin.Symbol} exceeded the threshold but isn't tradable (trading suspended): discarded.");
+        var metadata = await binance.GetSymbolMetadataAsync(cts.Token);
+        coins = CoinFilter.Classify(candidates, metadata, cryptoThreshold, stockThreshold,
+            settings.Binance.OnlyTradingSymbols, out var discarded);
 
-        coins = [.. coins.Where(c => tradingSymbols.Contains(c.Symbol))];
+        foreach (var (coin, reason) in discarded)
+            AppLog.Info($"{coin.Symbol} (+{coin.ChangePercent:0.00}%) discarded: {reason}.");
     }
 
     // Each kind is handled on its own: its own threshold, its own message and its own

@@ -1,8 +1,9 @@
 # COSLY High Price Bot
 
-A .NET 9 console app that watches Binance for pumps: it fetches the 24-hour ticker,
-keeps the `*USDT` pairs that gained more than a configurable threshold, and sends a
-formatted alert to Telegram with price, open, high/low, volume and trade count.
+A .NET 9 console app that watches **Binance USD-M futures** for pumps: it fetches the
+24-hour ticker, keeps the `*USDT` perpetuals that gained more than a configurable
+threshold, and sends a formatted alert to Telegram with price, open, high/low, volume
+and trade count.
 
 It tracks **two kinds of asset separately**, because they don't move on the same scale:
 
@@ -22,9 +23,10 @@ or a GitHub Actions cron — no server, no database, no background process to ke
 
 ## Features
 
-- Polls Binance's public 24h ticker and filters by quote asset and minimum % gain
-- Separates tokenized equities (`AAPLBUSDT`, `TSLABUSDT`, `SNDKBUSDT`) from crypto and
-  applies a much lower threshold to them, since a +15% day for a stock is exceptional
+- Polls Binance's public futures 24h ticker and filters by quote asset and minimum % gain
+- Separates tokenized equities (`TSLAUSDT`, `MRNAUSDT`, `HOODUSDT`) from crypto using the
+  exchange's own `contractType`, and applies a much lower threshold to them, since a +15%
+  day for a stock is exceptional
 - Skips symbols with suspended trading (`BREAK`/`HALT`), which would otherwise show
   up as huge, untradeable "pumps"
 - Sends a single alert per symbol — no repeats while it stays above its threshold,
@@ -60,36 +62,21 @@ success (whether or not anything matched), `1` on error.
 
 ## How tokenized stocks are detected
 
-Binance's spot market lists tokenized equities with a `B` suffix on the base asset:
-`AAPLB`, `TSLAB`, `SNDKB`. Spot's `exchangeInfo` gives **no field** that identifies
-them — every symbol looks alike.
+Binance futures tags every symbol with a contract type, and that single field does the
+whole job:
 
-Matching "base asset ends in `B`" is tempting and **wrong**: it also catches
-**BNB, SHIB, ARB, DGB, TRB, CKB, BB, YB and QNTB**.
-
-So the bot uses a version-controlled catalog,
-[`src/CoslyHighPriceBot/tokenized-stocks.json`](src/CoslyHighPriceBot/tokenized-stocks.json),
-listing the base assets that really are tokenized stocks. A newly listed stock that
-isn't in the catalog is simply treated as crypto — it won't alert until +100%, but it
-never produces a wrong alert.
-
-### Regenerating the catalog
-
-The authoritative source is Binance **futures**, where the classification is explicit
-(`contractType: "TRADIFI_PERPETUAL"`). This PowerShell snippet cross-references it
-against spot and rewrites the catalog:
-
-```powershell
-$f = Invoke-RestMethod "https://fapi.binance.com/fapi/v1/exchangeInfo"
-$tradfi = ($f.symbols | Where-Object { $_.contractType -eq 'TRADIFI_PERPETUAL' }).baseAsset | Sort-Object -Unique
-$r = Invoke-RestMethod "https://data-api.binance.vision/api/v3/exchangeInfo"
-$list = ($r.symbols | Where-Object { $_.quoteAsset -eq 'USDT' -and $_.baseAsset.EndsWith('B') -and $tradfi -contains $_.baseAsset.Substring(0, $_.baseAsset.Length - 1) }).baseAsset | Sort-Object -Unique
-$list | ConvertTo-Json | Set-Content -Encoding utf8 src/CoslyHighPriceBot/tokenized-stocks.json
+```
+"contractType": "TRADIFI_PERPETUAL"   -> tokenized stock   (~175 symbols)
+"contractType": "PERPETUAL"           -> crypto            (~698 symbols)
 ```
 
-> Run it from an unrestricted IP. `fapi.binance.com` returns `451` from US datacenters,
-> including GitHub Actions runners — which is exactly why the catalog is committed
-> rather than fetched at runtime.
+No catalog to maintain and no name-pattern guessing: a newly listed equity is classified
+correctly the moment it appears.
+
+This is the main reason the bot reads futures instead of spot. Spot exposes no such
+field — there, the only hint is a `B` suffix on the base asset (`AAPLB`), which also
+matches BNB, SHIB and ARB. Spot also simply doesn't list many of the symbols worth
+watching: `BTRUSDT` pumped 250% as a futures-only listing.
 
 ## Configuration
 
@@ -97,8 +84,8 @@ Every adjustable value lives in `appsettings.json`:
 
 | Key | Description |
 | --- | --- |
-| `Binance:Ticker24hUrl` | 24h ticker endpoint. With no query string it returns every symbol. |
-| `Binance:ExchangeInfoUrl` | Each symbol's status (TRADING / BREAK / HALT). |
+| `Binance:Ticker24hUrl` | Futures 24h ticker. With no query string it returns every symbol. |
+| `Binance:ExchangeInfoUrl` | Symbol status and `contractType` (which classifies each symbol). |
 | `Binance:QuoteAsset` | Quote asset to filter by (symbol suffix), e.g. `USDT`. |
 | `Binance:OnlyTradingSymbols` | Discards suspended pairs (recommended: `true`). |
 | `Filter:MinChangePercent` | Minimum 24h gain, in %, for crypto. |
@@ -106,7 +93,6 @@ Every adjustable value lives in `appsettings.json`:
 | `Filter:CooldownHours` | Hours before the same symbol can be alerted again. `0` disables it. |
 | `State:NotifiedSymbolsFile` | Tracks already-notified crypto. |
 | `State:NotifiedStocksFile` | Tracks already-notified tokenized stocks. |
-| `State:TokenizedStocksFile` | Read-only catalog of tokenized-stock base assets. |
 | `Logging:RetentionDays` | Days of logs to keep. `0` = keep them all. |
 | `Telegram:ApiBaseUrl` | Bot API base URL. |
 | `Telegram:BotToken` | Your bot's token. **Secret — never commit this.** |
@@ -136,11 +122,11 @@ committed back to the repo after each run, since GitHub Actions runners are ephe
 and don't persist disk state between runs on their own. Each run's log is also uploaded
 as a downloadable artifact (90-day retention), particularly useful when a run fails.
 
-> **Why `data-api.binance.vision` and not `api.binance.com`?** The main Binance
-> domain returns `451 Unavailable For Legal Reasons` from US datacenter IPs — which
-> is where GitHub Actions runners live. `data-api.binance.vision` is Binance's public,
-> read-only market-data mirror and works fine from CI. Note there is no equivalent
-> host for the futures API, so futures data can't be used from GitHub Actions at all.
+> **Why `www.binance.com/fapi/...` and not `fapi.binance.com`?** Binance blocks US
+> datacenter IPs, which is where GitHub Actions runners live. Measured from a runner:
+> `fapi.binance.com` → **451**, `api.binance.com` → 451, `fapi1/2/3.binance.com` → 202
+> with an empty body, but **`www.binance.com/fapi/v1/...` → 200** and serves the full
+> futures API. That host is what makes free CI hosting workable.
 
 ## Deploying with Windows Task Scheduler
 
@@ -160,13 +146,11 @@ src/CoslyHighPriceBot/
 ├─ Program.cs                    orchestration: config → fetch → filter → alert per kind
 ├─ Configuration/AppSettings.cs  appsettings.json POCOs + validation
 ├─ Models/Ticker24h.cs           Binance DTOs (all strings) + CoinKind and Coin
-├─ tokenized-stocks.json         catalog of tokenized-stock base assets
 └─ Services/
-   ├─ BinanceClient.cs           24h ticker and symbol status
-   ├─ CoinFilter.cs              classifies by kind and applies each kind's threshold
+   ├─ BinanceClient.cs           futures 24h ticker and symbol metadata
+   ├─ CoinFilter.cs              candidates, then classify by contractType + per-kind threshold
    ├─ MessageFormatter.cs        HTML message text, split if it exceeds 4096 chars
    ├─ TelegramNotifier.cs        POST to sendMessage
-   ├─ SymbolSetStore.cs          reads the tokenized-stock catalog
    ├─ AlertHistoryStore.cs       reads/writes symbol -> last-alerted timestamp
    └─ AppLog.cs                  console + daily file in Logs/
 ```
@@ -178,9 +162,12 @@ need either. `global.json` pins the SDK version.
 
 - Every numeric field in Binance's responses comes back as a string; parsing uses
   `CultureInfo.InvariantCulture` throughout.
-- Suspended pairs (`BREAK`/`HALT`) keep their 24h stats frozen, so they can look like
+- Symbols not in `TRADING` status keep their 24h stats frozen, so they can look like
   enormous pumps that are actually untradeable — that's what `OnlyTradingSymbols`
   guards against.
+- Futures `exchangeInfo` accepts no `symbols` filter and always returns the full ~1 MB
+  catalog, so it's only fetched once something clears the lower threshold. A quiet run
+  costs exactly one Binance call.
 
 ## License
 

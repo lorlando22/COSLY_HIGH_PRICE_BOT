@@ -4,11 +4,11 @@ using CoslyHighPriceBot.Models;
 
 namespace CoslyHighPriceBot.Services;
 
-/// <summary>Reads prices and metadata from Binance's public API.</summary>
+/// <summary>Reads prices and metadata from Binance's public USD-M futures API.</summary>
 internal sealed class BinanceClient(HttpClient http, BinanceOptions options)
 {
     /// <summary>
-    /// Fetches the 24h ticker for every symbol on the exchange (about 3,000, several MB).
+    /// Fetches the 24h ticker for every futures symbol (about 750, a few hundred KB).
     /// It's a single call per run, so there's no point paginating or filtering server-side.
     /// </summary>
     public async Task<IReadOnlyList<Ticker24h>> GetAllTickersAsync(CancellationToken cancellationToken)
@@ -17,21 +17,18 @@ internal sealed class BinanceClient(HttpClient http, BinanceOptions options)
         return tickers ?? throw new InvalidOperationException("Binance returned an empty response.");
     }
 
-    /// <summary>Of the given symbols, returns which ones are in TRADING status.</summary>
-    public async Task<IReadOnlySet<string>> GetTradingSymbolsAsync(
-        IReadOnlyCollection<string> symbols,
-        CancellationToken cancellationToken)
+    /// <summary>
+    /// Status and contract type for every symbol, keyed by symbol. Unlike spot, the futures
+    /// exchangeInfo takes no `symbols` filter: it always returns the full catalog, which is
+    /// why this is only called once there's at least one candidate worth classifying.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<string, SymbolInfo>> GetSymbolMetadataAsync(CancellationToken cancellationToken)
     {
-        if (symbols.Count == 0)
-            return new HashSet<string>(StringComparer.Ordinal);
-
-        var url = $"{options.ExchangeInfoUrl}?symbols={EncodeSymbols(symbols)}";
-        var info = await GetJsonAsync<ExchangeInfo>(url, cancellationToken);
+        var info = await GetJsonAsync<ExchangeInfo>(options.ExchangeInfoUrl, cancellationToken);
 
         return (info?.Symbols ?? [])
-            .Where(s => string.Equals(s.Status, "TRADING", StringComparison.Ordinal))
-            .Select(s => s.Symbol)
-            .ToHashSet(StringComparer.Ordinal);
+            .GroupBy(s => s.Symbol, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
     }
 
     private async Task<T?> GetJsonAsync<T>(string url, CancellationToken cancellationToken)
@@ -55,10 +52,6 @@ internal sealed class BinanceClient(HttpClient http, BinanceOptions options)
         }
     }
 
-    /// <summary>Trims the query string, which can carry the full list of symbols.</summary>
+    /// <summary>Trims the query string so long parameter lists stay out of the log.</summary>
     private static string SafeUrl(string url) => url.Split('?')[0];
-
-    /// <summary>Binance expects the symbols parameter as a JSON array inside the query string.</summary>
-    private static string EncodeSymbols(IReadOnlyCollection<string> symbols) =>
-        Uri.EscapeDataString(JsonSerializer.Serialize(symbols));
 }

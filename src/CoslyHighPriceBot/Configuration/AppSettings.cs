@@ -50,9 +50,6 @@ internal sealed class AppSettings
         if (string.Equals(State.NotifiedSymbolsFile, State.NotifiedStocksFile, StringComparison.OrdinalIgnoreCase))
             errors.Add("State:NotifiedSymbolsFile and State:NotifiedStocksFile must be different files.");
 
-        if (string.IsNullOrWhiteSpace(State.TokenizedStocksFile))
-            errors.Add("State:TokenizedStocksFile cannot be empty.");
-
         if (Logging.RetentionDays < 0)
             errors.Add("Logging:RetentionDays cannot be negative (0 = keep every log).");
 
@@ -62,11 +59,14 @@ internal sealed class AppSettings
 
 internal sealed class BinanceOptions
 {
-    /// <summary>24-hour ticker. With no query string it returns every symbol.</summary>
-    public string Ticker24hUrl { get; set; } = "https://data-api.binance.vision/api/v3/ticker/24hr";
+    /// <summary>
+    /// USD-M futures 24-hour ticker. With no query string it returns every symbol.
+    /// Served through www.binance.com on purpose: see the note about 451 in the README.
+    /// </summary>
+    public string Ticker24hUrl { get; set; } = "https://www.binance.com/fapi/v1/ticker/24hr";
 
-    /// <summary>Exchange info; used to know which symbols are tradable.</summary>
-    public string ExchangeInfoUrl { get; set; } = "https://data-api.binance.vision/api/v3/exchangeInfo";
+    /// <summary>Futures exchange info: symbol status and contract type. Takes no filters.</summary>
+    public string ExchangeInfoUrl { get; set; } = "https://www.binance.com/fapi/v1/exchangeInfo";
 
     /// <summary>Quote asset to consider; symbols ending in it are the ones kept.</summary>
     public string QuoteAsset { get; set; } = "USDT";
@@ -110,12 +110,6 @@ internal sealed class StateOptions
     /// threshold, so mixing both in one file would make the state hard to reason about.
     /// </summary>
     public string NotifiedStocksFile { get; set; } = "notified-stocks.json";
-
-    /// <summary>
-    /// Read-only catalog of base assets that are tokenized stocks (e.g. AAPLB, TSLAB).
-    /// See the README for how to regenerate it.
-    /// </summary>
-    public string TokenizedStocksFile { get; set; } = "tokenized-stocks.json";
 }
 
 internal sealed class LoggingOptions
