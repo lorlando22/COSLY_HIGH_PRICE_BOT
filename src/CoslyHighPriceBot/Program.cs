@@ -1,5 +1,6 @@
 using CoslyHighPriceBot.Configuration;
 using CoslyHighPriceBot.Models;
+using CoslyHighPriceBot.Modules;
 using CoslyHighPriceBot.Services;
 using Microsoft.Extensions.Configuration;
 
@@ -55,121 +56,111 @@ async Task<int> RunAsync()
 
     AppLog.DeleteOldFiles(settings.Logging.RetentionDays);
 
-    var cryptoStore = new AlertHistoryStore(ResolvePath(settings.State.NotifiedSymbolsFile));
-    var stockStore = new AlertHistoryStore(ResolvePath(settings.State.NotifiedStocksFile));
-    var notifiedCrypto = cryptoStore.Load();
-    var notifiedStocks = stockStore.Load();
-    AppLog.Info($"Already notified in previous runs: {notifiedCrypto.Count} crypto ({cryptoStore.FileName}), {notifiedStocks.Count} stock(s) ({stockStore.FileName}).");
-
     using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
     http.DefaultRequestHeaders.UserAgent.ParseAdd("CoslyHighPriceBot/1.0");
 
     var binance = new BinanceClient(http, settings.Binance);
     var telegram = new TelegramNotifier(http, settings.Telegram);
+    var metadata = new SymbolMetadataCache(binance);
 
-    AppLog.Info("Fetching Binance's futures 24h ticker...");
-    var tickers = await binance.GetAllTickersAsync(cts.Token);
+    var daily = new DailyPumpModule(
+        telegram, metadata, settings,
+        new AlertHistoryStore(ResolvePath(settings.State.NotifiedSymbolsFile)),
+        new AlertHistoryStore(ResolvePath(settings.State.NotifiedStocksFile)));
+    daily.LogState();
 
-    var quoteAsset = settings.Binance.QuoteAsset;
-    var cryptoThreshold = settings.Filter.MinChangePercent;
-    var stockThreshold = settings.Filter.StockMinChangePercent;
-    AppLog.Info($"{tickers.Count} symbols received, {CoinFilter.CountQuotePairs(tickers, quoteAsset)} are {quoteAsset} pairs.");
-
-    // First pass uses the lower of the two thresholds, since a symbol's kind — and so the
-    // threshold that really applies — isn't known until exchangeInfo has been read.
-    var candidates = CoinFilter.FindCandidates(tickers, quoteAsset, Math.Min(cryptoThreshold, stockThreshold));
-
-    IReadOnlyList<Coin> coins = [];
-    if (candidates.Count > 0)
+    EarlyPumpModule? early = null;
+    if (settings.Scan.Enabled)
     {
-        AppLog.Info($"{candidates.Count} symbol(s) above the lower threshold (+{Math.Min(cryptoThreshold, stockThreshold):0.##}%); fetching exchangeInfo to classify them...");
-
-        var metadata = await binance.GetSymbolMetadataAsync(cts.Token);
-        coins = CoinFilter.Classify(candidates, metadata, cryptoThreshold, stockThreshold,
-            settings.Binance.OnlyTradingSymbols, out var discarded);
-
-        foreach (var (coin, reason) in discarded)
-            AppLog.Info($"{coin.Symbol} (+{coin.ChangePercent:0.00}%) discarded: {reason}.");
+        early = new EarlyPumpModule(
+            binance, telegram, metadata, settings,
+            new AlertHistoryStore(ResolvePath(settings.State.NotifiedEarlyFile)));
+        early.LogState();
     }
 
-    // Each kind is handled on its own: its own threshold, its own message and its own
-    // state file, so a failure sending one doesn't lose the other's progress.
-    var sent = await NotifyGroupAsync(CoinKind.Crypto, cryptoThreshold, cryptoStore, notifiedCrypto);
-    sent += await NotifyGroupAsync(CoinKind.TokenizedStock, stockThreshold, stockStore, notifiedStocks);
+    // A run either scans once and exits — the way the bot always worked — or keeps scanning
+    // for a while. Looping is what makes the early-pump module worth having: waiting for the
+    // next 15-minute cron would put the alert twenty minutes behind the move it describes.
+    var interval = TimeSpan.FromSeconds(settings.Scan.IntervalSeconds);
+    var looping = interval > TimeSpan.Zero && settings.Scan.MaxRunMinutes > 0;
+    var deadline = DateTimeOffset.UtcNow + TimeSpan.FromMinutes(settings.Scan.MaxRunMinutes);
 
-    if (sent > 0)
-        AppLog.Info($"Alert sent to Telegram ({sent} message(s)).");
-    else if (coins.Count == 0)
-        AppLog.Info($"No coin exceeded its threshold (+{cryptoThreshold:0.##}% crypto, +{stockThreshold:0.##}% stocks). Nothing sent to Telegram.");
-    else
-        AppLog.Info("No new coin exceeded its threshold. Nothing sent to Telegram.");
+    if (looping)
+        AppLog.Info($"Scanning every {interval.TotalSeconds:0}s for up to {settings.Scan.MaxRunMinutes} minutes.");
 
-    return 0;
+    var scan = 0;
+    bool lastScanSucceeded;
 
-    async Task<int> NotifyGroupAsync(CoinKind kind, decimal threshold, AlertHistoryStore store, IReadOnlyDictionary<string, DateTimeOffset> alreadyNotified)
+    while (true)
     {
-        var label = kind == CoinKind.TokenizedStock ? "tokenized stock" : "crypto";
-        var group = coins.Where(c => c.Kind == kind).ToList();
-        var aboveThreshold = group.Select(c => c.Symbol).ToHashSet(StringComparer.Ordinal);
+        scan++;
+        if (looping)
+            AppLog.Info($"----- Scan #{scan} -----");
 
-        var now = DateTimeOffset.UtcNow;
-        var cooldown = TimeSpan.FromHours(settings.Filter.CooldownHours);
+        lastScanSucceeded = await RunScanAsync();
 
-        // An entry survives while the symbol is still above the threshold OR while its
-        // cooldown is running. Dropping below the threshold no longer clears the memory on
-        // its own — that's what let a quick dip and re-cross produce a duplicate alert.
-        var history = new Dictionary<string, DateTimeOffset>(StringComparer.Ordinal);
-        foreach (var (symbol, notifiedAt) in alreadyNotified)
+        if (!looping)
+            break;
+
+        var remaining = deadline - DateTimeOffset.UtcNow;
+        if (remaining <= interval)
         {
-            var elapsed = now - notifiedAt;
-
-            if (aboveThreshold.Contains(symbol))
-            {
-                history[symbol] = notifiedAt;
-            }
-            else if (elapsed < cooldown)
-            {
-                history[symbol] = notifiedAt;
-                AppLog.Info($"{symbol} is below the {label} threshold but within the {settings.Filter.CooldownHours:0.##}h cooldown (notified {elapsed.TotalHours:0.0}h ago): kept.");
-            }
-            else
-            {
-                AppLog.Info($"{symbol} no longer exceeds the {label} threshold (+{threshold:0.##}%) and its cooldown expired: removed from {store.FileName}.");
-            }
+            AppLog.Info($"Scan window closed after {scan} scan(s).");
+            break;
         }
 
-        var repeated = group.Where(c => history.ContainsKey(c.Symbol)).ToList();
-        if (repeated.Count > 0)
-            AppLog.Info($"Already notified {label}, skipped: {string.Join(", ", repeated.Select(c => c.Symbol))}");
+        await Task.Delay(interval, cts.Token);
+    }
 
-        var toNotify = group.Where(c => !history.ContainsKey(c.Symbol)).ToList();
-        if (toNotify.Count == 0)
+    // Only the last scan decides the exit code, and that's deliberate. The workflow skips the
+    // state commit when the run fails, so failing over a transient Telegram error in scan 3
+    // would throw away the memory of everything already sent and re-announce all of it on the
+    // next run. If a later scan succeeded, what's on disk is consistent and worth keeping.
+    return lastScanSucceeded ? 0 : 1;
+
+    async Task<bool> RunScanAsync()
+    {
+        IReadOnlyList<Ticker24h> tickers;
+        try
         {
-            store.Save(history);
-            return 0;
+            tickers = await binance.GetAllTickersAsync(cts.Token);
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error($"Could not read the Binance ticker: {ex.Message}");
+            return false;
         }
 
-        AppLog.Info($"{toNotify.Count} new {label}(s) above the threshold (+{threshold:0.##}%):");
-        foreach (var coin in toNotify)
-            AppLog.Info($"  {coin.Symbol,-16} 24h: {coin.ChangePercent,8:+0.00;-0.00}%");
+        // Both modules share this one ticker, so the second costs nothing to run. They're
+        // isolated from each other on purpose: whichever fails, the other still alerts.
+        var succeeded = await RunModuleAsync("24h pump", () => daily.RunAsync(tickers, cts.Token));
 
-        var messages = MessageFormatter.Build(toNotify, threshold);
-        foreach (var message in messages)
-            await telegram.SendAsync(message, cts.Token);
+        if (early is not null)
+            succeeded &= await RunModuleAsync("early pump", () => early.RunAsync(tickers, cts.Token));
 
-        // The timestamp records when the message went out and is never refreshed later:
-        // refreshing it would extend the cooldown forever on a sustained pump, and would
-        // rewrite the file on every run — one git commit every 15 minutes in the cloud.
-        foreach (var coin in toNotify)
+        return succeeded;
+    }
+
+    async Task<bool> RunModuleAsync(string name, Func<Task<int>> module)
+    {
+        try
         {
-            history[coin.Symbol] = now;
-            AppLog.Info($"{coin.Symbol} exceeded the {label} threshold (+{coin.ChangePercent:0.00}% in 24h): notified via Telegram.");
+            await module();
+            return true;
         }
-
-        // Only saved now: if the send fails, the next run has to retry.
-        store.Save(history);
-        AppLog.Info($"{history.Count} {label} symbol(s) remembered in {store.FileName}.");
-        return messages.Count;
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error($"The {name} module failed: {ex.Message}");
+            return false;
+        }
     }
 }
 

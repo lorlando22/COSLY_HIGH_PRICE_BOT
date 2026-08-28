@@ -30,6 +30,47 @@ internal static class MessageFormatter
             .ToList();
     }
 
+    /// <summary>
+    /// The early-pump message. Every number that qualified the symbol is spelled out, so the
+    /// alert can be judged on the spot instead of taken on faith.
+    /// </summary>
+    public static IReadOnlyList<string> BuildEarly(
+        IReadOnlyList<EarlySignal> signals, string candleInterval, int squeezeLookback)
+    {
+        var bodies = Chunk(signals.Select((signal, index) => BuildEarlyBlock(signal, index + 1, candleInterval, squeezeLookback)));
+
+        return bodies
+            .Select((body, index) =>
+            {
+                var part = bodies.Count > 1 ? $" · part {index + 1}/{bodies.Count}" : "";
+                return "⚡ <b>Early Pump Signal</b>\n" +
+                       $"<i>{DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC · {Escape(candleInterval)} candles{part}</i>\n\n" +
+                       body;
+            })
+            .ToList();
+    }
+
+    private static string BuildEarlyBlock(EarlySignal signal, int position, string candleInterval, int squeezeLookback)
+    {
+        var candle = signal.TriggeredOn == SignalCandle.Forming
+            ? $"{Escape(candleInterval)} candle, still open"
+            : $"{Escape(candleInterval)} candle";
+
+        // SqueezeRank is how much of the lookback was tighter, so the readable form — how
+        // much of it was wider — is its complement.
+        var tighterThan = 100m - signal.SqueezeRank;
+
+        return new StringBuilder()
+            .Append($"<b>{position}. {Escape(signal.Symbol)}</b> — <b>{FormatPercent(signal.CandleChangePercent)}</b> ({candle})\n")
+            .Append($"💵 Price: {FormatPrice(signal.Price)}\n")
+            .Append($"📊 Volume: {signal.VolumeRatio:0.#}× the recent average\n")
+            .Append($"📈 RSI: {signal.Rsi:0.0}\n")
+            .Append($"🎯 Bands tighter than {tighterThan:0}% of the last {squeezeLookback} candles\n")
+            .Append($"🕐 24h: {FormatPercent(signal.DayChangePercent)}   ")
+            .Append($"💰 Vol 24h: {FormatVolume(signal.DayQuoteVolume)} {Escape(signal.QuoteAsset)}\n\n")
+            .ToString();
+    }
+
     private static string Title(CoinKind kind) => kind switch
     {
         CoinKind.TokenizedStock => "📈 <b>Tokenized Stocks — last 24h</b>",

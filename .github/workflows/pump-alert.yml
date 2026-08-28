@@ -4,6 +4,12 @@ on:
   schedule:
     # Every 15 minutes. GitHub can delay scheduled crons under load: the actual
     # interval tends to run longer. That's not an issue for 24h pumps.
+    #
+    # Each run now keeps scanning for about 13 minutes (Scan:MaxRunMinutes) instead of
+    # exiting immediately, so the early-pump alerts land within a minute of the candle
+    # that triggered them rather than up to twenty minutes later. That makes a run cost
+    # ~14 billable minutes: free while the repo is public, expensive if it ever goes
+    # private — set Scan:MaxRunMinutes to 0 there to go back to one scan per run.
     - cron: '*/15 * * * *'
   workflow_dispatch:
 
@@ -19,6 +25,10 @@ concurrency:
 jobs:
   alert:
     runs-on: ubuntu-latest
+
+    # A scanning run lasts ~13 minutes by design; this only catches one that hangs,
+    # and stays under the 15-minute cron so runs never pile up.
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v4
@@ -37,9 +47,13 @@ jobs:
         env:
           Telegram__BotToken: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           Telegram__ChatIds: ${{ secrets.TELEGRAM_CHAT_IDS }}
+          # Early-pump alerts go to their own channel. Left unset they fall back to
+          # TELEGRAM_CHAT_IDS, which is how the two streams get merged back into one.
+          Telegram__EarlyChatIds: ${{ secrets.TELEGRAM_EARLY_CHAT_IDS }}
           # Absolute paths inside the repo so the state stays version-controlled.
           State__NotifiedSymbolsFile: ${{ github.workspace }}/state/notified-symbols.json
           State__NotifiedStocksFile: ${{ github.workspace }}/state/notified-stocks.json
+          State__NotifiedEarlyFile: ${{ github.workspace }}/state/notified-early.json
         run: dotnet run --project src/CoslyHighPriceBot -c Release
 
       # always() so the log stays available especially when the run fails,
@@ -54,12 +68,14 @@ jobs:
           retention-days: 90
 
       # If the run fails this step is never reached, so a Telegram error never
-      # leaves a coin marked as notified when it was never actually sent.
+      # leaves a coin marked as notified when it was never actually sent. A run only
+      # reports failure when its *last* scan failed: an earlier transient error that a
+      # later scan recovered from leaves the state on disk consistent and worth keeping.
       - name: Save notified symbols
         run: |
           git config user.name  'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git add state/notified-symbols.json state/notified-stocks.json
+          git add state/notified-symbols.json state/notified-stocks.json state/notified-early.json
           if git diff --staged --quiet; then
             echo "No changes to the state."
           else

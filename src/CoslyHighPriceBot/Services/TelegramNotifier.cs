@@ -13,9 +13,16 @@ internal sealed class TelegramNotifier(HttpClient http, TelegramOptions options)
     /// resent on the next run's retry, which is a smaller risk than silently skipping a
     /// destination.
     /// </summary>
-    public async Task SendAsync(string text, CancellationToken cancellationToken)
+    public Task SendAsync(string text, CancellationToken cancellationToken) =>
+        SendAsync(text, options.GetChatIds(), cancellationToken);
+
+    /// <summary>
+    /// Same thing, to an explicit list of chats. This is what lets each kind of alert have
+    /// its own channel without every caller having to know where its messages go.
+    /// </summary>
+    public async Task SendAsync(string text, IReadOnlyList<string> chatIds, CancellationToken cancellationToken)
     {
-        foreach (var chatId in options.GetChatIds())
+        foreach (var chatId in chatIds)
             await SendToChatAsync(chatId, text, cancellationToken);
     }
 

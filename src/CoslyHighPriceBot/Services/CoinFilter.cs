@@ -103,8 +103,14 @@ internal static class CoinFilter
             t.Symbol.Length > quoteAsset.Length &&
             t.Symbol.EndsWith(quoteAsset, StringComparison.Ordinal));
 
-    private static bool TryParse(string value, out decimal result) =>
+    /// <summary>
+    /// Binance sends every numeric field as a string. This is the one place that turns them
+    /// into numbers, always with the invariant culture — a machine set to a comma decimal
+    /// separator would otherwise read "1.5" as 15.
+    /// </summary>
+    internal static bool TryParse(string value, out decimal result) =>
         decimal.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out result);
 
-    private static decimal Parse(string value) => TryParse(value, out var result) ? result : 0m;
+    /// <summary>Same, for fields where an unreadable value is better treated as zero than as an error.</summary>
+    internal static decimal Parse(string value) => TryParse(value, out var result) ? result : 0m;
 }
