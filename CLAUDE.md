@@ -39,13 +39,19 @@ a hand-maintained catalog to work around that; futures made it unnecessary.
 
 ## Latency and the scan loop
 
-A single-shot run on a 15-minute cron would report a pump up to fifteen minutes after it
-crossed the threshold. So a run **keeps scanning**: every `Run:IntervalSeconds` (60) for
-up to `Run:MaxRunMinutes` (13), then exits and lets the cron start the next one.
-`Run:IntervalSeconds = 0` restores the original one-scan-and-exit behaviour exactly. This
-loop was originally added to make the (now split-out) early-pump module viable, but it
-benefits this detector too: a coin crossing the threshold gets caught within a minute
-instead of up to fifteen.
+A run can either scan once and exit or **keep scanning** every `Run:IntervalSeconds` (60)
+for up to `Run:MaxRunMinutes`, then exit and let the scheduler start the next one.
+`Run:MaxRunMinutes = 0` picks the single pass.
+
+**In the cloud it is set to `0`: one pass per run, and the 10-minute cron is the scan
+cadence.** The loop existed for the early-pump module, which needed to catch a 5-minute
+candle within a minute of it forming; that module now lives in its own repo. A detector
+whose input is a 24-hour percentage gains nothing from re-reading it sixty seconds later,
+and a single pass costs ~1 billable minute against the loop's ~14.
+
+The loop is still there because a machine that stays on has no cron to lean on: that is
+what `run-bot.cmd` uses, widening the window to a full day with `Run__MaxRunMinutes=1435`
+so a repeating Task Scheduler trigger acts as a watchdog.
 
 ## Log
 
@@ -95,7 +101,7 @@ Two rules fall out of that:
 
 **The timestamp is never refreshed.** It records when the message was sent, not when the
 coin was last seen. Refreshing it would keep a sustained pump in cooldown forever, and
-would rewrite the file on every run — which in the cloud means a git commit every 15
+would rewrite the file on every run — which in the cloud means a git commit every 10
 minutes.
 
 Saving happens **after** sending: if Telegram fails, nothing is recorded and the next scan
@@ -116,8 +122,9 @@ later scan succeeded, what's on disk is consistent and worth committing.
 dotnet run --project src/CoslyHighPriceBot
 ```
 
-By default it scans every 60s for ~13 minutes and exits. Add `Run__IntervalSeconds=0` for
-a single pass. Exit codes: `0` success (whether or not any symbol matched), `1` error.
+By default (`Run:MaxRunMinutes = 0`) it scans once and exits. Set `Run__MaxRunMinutes` to
+a positive number to make it keep scanning every `Run:IntervalSeconds` instead. Exit
+codes: `0` success (whether or not any symbol matched), `1` error.
 
 Useful overrides while working on it — everything is an environment variable:
 
@@ -160,8 +167,8 @@ Every adjustable value lives in `src/CoslyHighPriceBot/appsettings.json`:
 | `Filter:MinChangePercent` | Minimum 24h gain, in %, for **crypto**. |
 | `Filter:StockMinChangePercent` | Minimum 24h gain, in %, for **tokenized stocks**. |
 | `Filter:CooldownHours` | Hours before the same symbol can be alerted again. `0` disables it. |
-| `Run:IntervalSeconds` | Seconds between scans. `0` = one scan and exit. |
-| `Run:MaxRunMinutes` | How long a run keeps scanning. Kept under the 15-minute cron. |
+| `Run:IntervalSeconds` | Seconds between scans when the loop is on. |
+| `Run:MaxRunMinutes` | How long a run keeps scanning. `0` = one scan and exit (the cloud default). Must stay below the cron interval. |
 | `State:NotifiedSymbolsFile` | Already-notified crypto. Relative = next to the executable. |
 | `State:NotifiedStocksFile` | Already-notified tokenized stocks. Must differ from the above. |
 | `Logging:RetentionDays` | Days of logs to keep. `0` = never delete any. |
@@ -183,8 +190,8 @@ This is how the token is passed in the cloud without writing it to any file.
 
 ## Running in the cloud (GitHub Actions)
 
-[`.github/workflows/pump-alert.yml`](.github/workflows/pump-alert.yml) runs the bot
-every 15 minutes without depending on any machine being on.
+[`.github/workflows/daily-pump-alert.yml`](.github/workflows/daily-pump-alert.yml) runs
+the bot every 10 minutes without depending on any machine being on.
 
 It needs two secrets in the repo (Settings → Secrets and variables → Actions):
 `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_IDS`.
@@ -199,17 +206,18 @@ day's file as an **artifact** (`log-<run number>`, 90-day retention). Download i
 the run's page. The same content is in the output of the "Find pumps and alert" step.
 The artifact is uploaded with `always()`: it matters most when the run fails.
 
-**Cost.** A run scans in a loop for ~13 minutes rather than exiting immediately, which
-was originally sized for the (now split-out) early-pump module's need to catch a
-5-minute candle quickly. This detector only needs to notice a 24h change, so a single
-scan per run would do the job just as well; the loop is kept for now because it's free
-on a public repo. Roughly 40,000 billable minutes a month, free **only while the repo is
-public**. If it ever goes private, set `Run:MaxRunMinutes` to `0` (one scan per run) or
-space the cron out.
+**Cost.** A run is a single pass and bills ~1-2 minutes: roughly 6,500 minutes a month at
+6 runs an hour. That is comfortably free on a public repo and, unlike the old 13-minute
+scanning loop (~40,000 minutes a month), survivable on a private one.
+
+`Run:MaxRunMinutes` **must stay below the cron interval.** At the old value of 13 against
+a 10-minute cron, runs would overlap; the `concurrency` group would queue them rather than
+run them in parallel, and the backlog would grow indefinitely. `0` sidesteps the question.
 
 GitHub delays scheduled crons under load, so the actual interval can run noticeably
-longer than 15 minutes. The `concurrency` group prevents two runs overlapping, and
-`Run:MaxRunMinutes: 13` leaves margin against the 15-minute schedule.
+longer than 10 minutes. That only costs latency, never a missed pump: the state file
+remembers what has already been announced, so a late run reports the same coin exactly
+once.
 
 ## Structure
 

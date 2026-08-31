@@ -1,18 +1,15 @@
-name: Pump alert
+name: 24h pump alert
 
 on:
   schedule:
-    # Every 15 minutes. GitHub can delay scheduled crons under load: the actual
-    # interval tends to run longer. That's not an issue for 24h pumps.
+    # Every 10 minutes. GitHub delays scheduled crons under load, so the real interval
+    # tends to run longer — which is fine for a detector that reports a 24-hour change.
     #
-    # Each run keeps scanning for about 13 minutes (Run:MaxRunMinutes) instead of
-    # exiting immediately, which is a leftover from when this repo also ran the
-    # early-pump detector (now split into its own repo) and made that module ~13x
-    # more responsive at no extra cost to the 24h detector. That makes a run cost
-    # ~14 billable minutes: free while the repo is public, expensive if it ever goes
-    # private — set Run:MaxRunMinutes to 0 there to go back to one scan per run, which
-    # is plenty for a detector that only needs to notice a 24h change.
-    - cron: '*/15 * * * *'
+    # Each run is a SINGLE pass (Run:MaxRunMinutes = 0 in appsettings.ci.json) and costs
+    # about a minute. The old 13-minute scanning loop existed for the early-pump detector
+    # that used to share this repo; now that it lives in its own repo and runs locally,
+    # the cron itself is the scan cadence and a run has no reason to stay alive.
+    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 # Needed so the workflow can commit the state back to the repo.
@@ -21,16 +18,16 @@ permissions:
 
 # Two concurrent runs would clash pushing the state.
 concurrency:
-  group: pump-alert
+  group: daily-pump-alert
   cancel-in-progress: false
 
 jobs:
   alert:
     runs-on: ubuntu-latest
 
-    # A scanning run lasts ~13 minutes by design; this only catches one that hangs,
-    # and stays under the 15-minute cron so runs never pile up.
-    timeout-minutes: 20
+    # A single pass takes about a minute; this only catches a run that hangs, and stays
+    # under the 10-minute cron so runs never pile up.
+    timeout-minutes: 8
 
     steps:
       - uses: actions/checkout@v4
@@ -65,10 +62,8 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-      # If the run fails this step is never reached, so a Telegram error never
-      # leaves a coin marked as notified when it was never actually sent. A run only
-      # reports failure when its *last* scan failed: an earlier transient error that a
-      # later scan recovered from leaves the state on disk consistent and worth keeping.
+      # If the run fails this step is never reached, so a Telegram error never leaves a
+      # coin marked as notified when it was never actually sent: the next run retries.
       - name: Save notified symbols
         run: |
           git config user.name  'github-actions[bot]'

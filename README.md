@@ -15,9 +15,9 @@ it stays above its threshold, and for a configurable cooldown (8h by default). T
 cooldown is what stops a coin that dips and re-crosses the threshold minutes later from
 being announced two or three times.
 
-No server, no database. A run scans in a loop for ~13 minutes and exits, so it fits a
-GitHub Actions cron or a Windows Task Scheduler job — which it still is with
-`Run:IntervalSeconds = 0` for a single pass.
+No server, no database. A run scans once and exits, so it fits a GitHub Actions cron (how
+it's deployed) or a Windows Task Scheduler job. Set `Run:MaxRunMinutes` to a positive
+number and it keeps scanning instead, for a machine that stays on and has no cron.
 
 > **Looking for a pump detector that catches the move as it starts, instead of after a
 > 24h threshold trips?** That's [`COSLY_EARLY_PUMP_BOT`](../COSLY_EARLY_PUMP_BOT), a
@@ -35,11 +35,11 @@ GitHub Actions cron or a Windows Task Scheduler job — which it still is with
   up as huge, untradeable "pumps"
 - Sends a single alert per symbol — no repeats while it stays above its threshold,
   plus a cooldown (8h by default) so a dip-and-recross doesn't re-announce it
-- Scans in a loop rather than exiting immediately, so a symbol crossing the threshold
-  is caught within a minute instead of up to fifteen
+- Optional scan loop for long-running local sessions, off by default in the cloud where
+  the cron already provides the cadence
 - Daily rotating log file with automatic retention cleanup
 - Everything configurable via `appsettings.json` or environment variables (for secrets)
-- Ready-to-use GitHub Actions workflow to run every 15 minutes for free
+- Ready-to-use GitHub Actions workflow to run every 10 minutes for free
 
 ## Quick start
 
@@ -53,9 +53,9 @@ Requires the [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0).
    dotnet run --project src/CoslyHighPriceBot
    ```
 
-It scans every 60 seconds for ~13 minutes, alerts on anything worth alerting about, and
-exits. Add `Run__IntervalSeconds=0` for a single pass. Exit code `0` on success (whether
-or not anything matched), `1` on error.
+It scans once, alerts on anything worth alerting about, and exits. Add
+`Run__MaxRunMinutes=30` to make it keep scanning every 60 seconds for half an hour
+instead. Exit code `0` on success (whether or not anything matched), `1` on error.
 
 ### Getting a Telegram bot token and chat ID
 
@@ -97,8 +97,8 @@ Every adjustable value lives in `appsettings.json`:
 | `Filter:MinChangePercent` | Minimum 24h gain, in %, for crypto. |
 | `Filter:StockMinChangePercent` | Minimum 24h gain, in %, for tokenized stocks. |
 | `Filter:CooldownHours` | Hours before the same symbol can be alerted again. `0` disables it. |
-| `Run:IntervalSeconds` | Seconds between scans. `0` = one scan and exit. Default `60`. |
-| `Run:MaxRunMinutes` | How long a run keeps scanning. Default `13`. |
+| `Run:IntervalSeconds` | Seconds between scans when the loop is on. Default `60`. |
+| `Run:MaxRunMinutes` | How long a run keeps scanning. `0` (the default) = one scan and exit. |
 | `State:NotifiedSymbolsFile` | Tracks already-notified crypto. |
 | `State:NotifiedStocksFile` | Tracks already-notified tokenized stocks. |
 | `Logging:RetentionDays` | Days of logs to keep. `0` = keep them all. |
@@ -115,11 +115,11 @@ credential-free template you can copy from.
 
 ## Deploying to GitHub Actions (free)
 
-The included [`.github/workflows/pump-alert.yml`](.github/workflows/pump-alert.yml)
-runs the bot every 15 minutes without needing any machine to stay on.
+The included [`.github/workflows/daily-pump-alert.yml`](.github/workflows/daily-pump-alert.yml)
+runs the bot every 10 minutes without needing any machine to stay on.
 
 1. Fork or push this repo to GitHub — **keep it public** so Actions minutes are free
-   (2,880 runs/month exceeds the private-repo free tier).
+   (4,320 runs/month exceeds the private-repo free tier).
 2. Add two repository secrets (Settings → Secrets and variables → Actions):
    `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_IDS`.
 3. Trigger it once manually from the Actions tab to confirm it works, or just wait
@@ -130,10 +130,10 @@ run, since GitHub Actions runners are ephemeral and don't persist disk state bet
 on their own. Each run's log is also uploaded as a downloadable artifact (90-day
 retention), particularly useful when a run fails.
 
-> **Keeping the repo public matters more now.** A run scans for ~13 minutes instead of
-> exiting immediately, so it bills ~14 minutes rather than 1 — roughly 40,000 minutes a
-> month. That's free on a public repo and expensive on a private one; set
-> `Run:MaxRunMinutes` to `0` there to go back to one scan per run.
+> **Cost.** Each run is a single pass and bills 1-2 minutes — roughly 6,500 minutes a
+> month. Free on a public repo, and modest enough to be workable on a private one.
+> If you raise `Run:MaxRunMinutes` above `0`, keep it **below the cron interval**, or
+> runs overlap and the `concurrency` group queues an ever-growing backlog.
 
 > **Why `www.binance.com/fapi/...` and not `fapi.binance.com`?** Binance blocks US
 > datacenter IPs, which is where GitHub Actions runners live. Measured from a runner:
