@@ -5,11 +5,13 @@ on:
     # Every 15 minutes. GitHub can delay scheduled crons under load: the actual
     # interval tends to run longer. That's not an issue for 24h pumps.
     #
-    # Each run now keeps scanning for about 13 minutes (Scan:MaxRunMinutes) instead of
-    # exiting immediately, so the early-pump alerts land within a minute of the candle
-    # that triggered them rather than up to twenty minutes later. That makes a run cost
+    # Each run keeps scanning for about 13 minutes (Run:MaxRunMinutes) instead of
+    # exiting immediately, which is a leftover from when this repo also ran the
+    # early-pump detector (now split into its own repo) and made that module ~13x
+    # more responsive at no extra cost to the 24h detector. That makes a run cost
     # ~14 billable minutes: free while the repo is public, expensive if it ever goes
-    # private — set Scan:MaxRunMinutes to 0 there to go back to one scan per run.
+    # private — set Run:MaxRunMinutes to 0 there to go back to one scan per run, which
+    # is plenty for a detector that only needs to notice a 24h change.
     - cron: '*/15 * * * *'
   workflow_dispatch:
 
@@ -47,13 +49,9 @@ jobs:
         env:
           Telegram__BotToken: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           Telegram__ChatIds: ${{ secrets.TELEGRAM_CHAT_IDS }}
-          # Early-pump alerts go to their own channel. Left unset they fall back to
-          # TELEGRAM_CHAT_IDS, which is how the two streams get merged back into one.
-          Telegram__EarlyChatIds: ${{ secrets.TELEGRAM_EARLY_CHAT_IDS }}
           # Absolute paths inside the repo so the state stays version-controlled.
           State__NotifiedSymbolsFile: ${{ github.workspace }}/state/notified-symbols.json
           State__NotifiedStocksFile: ${{ github.workspace }}/state/notified-stocks.json
-          State__NotifiedEarlyFile: ${{ github.workspace }}/state/notified-early.json
         run: dotnet run --project src/CoslyHighPriceBot -c Release
 
       # always() so the log stays available especially when the run fails,
@@ -75,7 +73,7 @@ jobs:
         run: |
           git config user.name  'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git add state/notified-symbols.json state/notified-stocks.json state/notified-early.json
+          git add state/notified-symbols.json state/notified-stocks.json
           if git diff --staged --quiet; then
             echo "No changes to the state."
           else

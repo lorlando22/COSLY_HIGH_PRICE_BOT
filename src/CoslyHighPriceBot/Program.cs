@@ -69,24 +69,15 @@ async Task<int> RunAsync()
         new AlertHistoryStore(ResolvePath(settings.State.NotifiedStocksFile)));
     daily.LogState();
 
-    EarlyPumpModule? early = null;
-    if (settings.Scan.Enabled)
-    {
-        early = new EarlyPumpModule(
-            binance, telegram, metadata, settings,
-            new AlertHistoryStore(ResolvePath(settings.State.NotifiedEarlyFile)));
-        early.LogState();
-    }
-
     // A run either scans once and exits — the way the bot always worked — or keeps scanning
-    // for a while. Looping is what makes the early-pump module worth having: waiting for the
-    // next 15-minute cron would put the alert twenty minutes behind the move it describes.
-    var interval = TimeSpan.FromSeconds(settings.Scan.IntervalSeconds);
-    var looping = interval > TimeSpan.Zero && settings.Scan.MaxRunMinutes > 0;
-    var deadline = DateTimeOffset.UtcNow + TimeSpan.FromMinutes(settings.Scan.MaxRunMinutes);
+    // for a while. Looping is what makes the 24h module ~13x more responsive than a single
+    // pass on a 15-minute cron would be.
+    var interval = TimeSpan.FromSeconds(settings.Run.IntervalSeconds);
+    var looping = interval > TimeSpan.Zero && settings.Run.MaxRunMinutes > 0;
+    var deadline = DateTimeOffset.UtcNow + TimeSpan.FromMinutes(settings.Run.MaxRunMinutes);
 
     if (looping)
-        AppLog.Info($"Scanning every {interval.TotalSeconds:0}s for up to {settings.Scan.MaxRunMinutes} minutes.");
+        AppLog.Info($"Scanning every {interval.TotalSeconds:0}s for up to {settings.Run.MaxRunMinutes} minutes.");
 
     var scan = 0;
     bool lastScanSucceeded;
@@ -135,14 +126,7 @@ async Task<int> RunAsync()
             return false;
         }
 
-        // Both modules share this one ticker, so the second costs nothing to run. They're
-        // isolated from each other on purpose: whichever fails, the other still alerts.
-        var succeeded = await RunModuleAsync("24h pump", () => daily.RunAsync(tickers, cts.Token));
-
-        if (early is not null)
-            succeeded &= await RunModuleAsync("early pump", () => early.RunAsync(tickers, cts.Token));
-
-        return succeeded;
+        return await RunModuleAsync("24h pump", () => daily.RunAsync(tickers, cts.Token));
     }
 
     async Task<bool> RunModuleAsync(string name, Func<Task<int>> module)

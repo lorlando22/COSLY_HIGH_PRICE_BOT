@@ -7,8 +7,8 @@ namespace CoslyHighPriceBot.Services;
 /// <para>
 /// It matters for two reasons. The response is about 1 MB and the futures endpoint accepts
 /// no filter, so re-fetching it on every scan of a 13-minute run would be the single most
-/// wasteful thing the bot does. And because it's lazy, a quiet run with the early-pump
-/// module off still costs exactly one Binance call, the way it always has.
+/// wasteful thing the bot does. And because it's lazy, it's only fetched at all once a
+/// symbol actually needs classifying, so a quiet run still costs exactly one Binance call.
 /// </para>
 /// The catalog changing mid-run is not a concern: a symbol listed or delisted while the
 /// process is alive is picked up by the next run, minutes later.
@@ -16,8 +16,6 @@ namespace CoslyHighPriceBot.Services;
 internal sealed class SymbolMetadataCache(BinanceClient binance)
 {
     private IReadOnlyDictionary<string, SymbolInfo>? cached;
-
-    public bool IsLoaded => cached is not null;
 
     public async Task<IReadOnlyDictionary<string, SymbolInfo>> GetAsync(CancellationToken cancellationToken)
     {

@@ -12,12 +12,6 @@ internal sealed class BinanceClient(HttpClient http, BinanceOptions options)
     private const int MaxAttempts = 3;
 
     /// <summary>
-    /// Weight consumed in the current minute, as reported by Binance's own header. The
-    /// budget is 2400: worth logging once per scan to know how much room is left.
-    /// </summary>
-    public int? UsedWeightLastMinute { get; private set; }
-
-    /// <summary>
     /// Fetches the 24h ticker for every futures symbol (about 750, a few hundred KB).
     /// It's a single call per scan, so there's no point paginating or filtering server-side.
     /// </summary>
@@ -41,33 +35,6 @@ internal sealed class BinanceClient(HttpClient http, BinanceOptions options)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
     }
 
-    /// <summary>
-    /// Candles for one symbol, oldest first. The last one is normally still forming, which
-    /// callers detect through <see cref="Kline.CloseTime"/> being in the future.
-    /// <para>
-    /// This is the only endpoint the bot calls per symbol, so it's the only one that can
-    /// realistically hit a rate limit. Rows that don't parse are dropped rather than
-    /// throwing: one bad candle shouldn't cost the whole scan.
-    /// </para>
-    /// </summary>
-    public async Task<IReadOnlyList<Kline>> GetKlinesAsync(
-        string symbol, string interval, int limit, CancellationToken cancellationToken)
-    {
-        var url = $"{options.KlinesUrl}?symbol={Uri.EscapeDataString(symbol)}" +
-                  $"&interval={Uri.EscapeDataString(interval)}&limit={limit}";
-
-        var rows = await GetJsonAsync<List<JsonElement[]>>(url, cancellationToken) ?? [];
-
-        var klines = new List<Kline>(rows.Count);
-        foreach (var row in rows)
-        {
-            if (Kline.TryFromArray(row, out var kline))
-                klines.Add(kline);
-        }
-
-        return klines;
-    }
-
     private async Task<T?> GetJsonAsync<T>(string url, CancellationToken cancellationToken)
     {
         for (var attempt = 1; ; attempt++)
@@ -75,9 +42,6 @@ internal sealed class BinanceClient(HttpClient http, BinanceOptions options)
             try
             {
                 using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-
-                if (ReadUsedWeight(response) is { } weight)
-                    UsedWeightLastMinute = weight;
 
                 // 429 is a warning, 418 is an IP ban that's already started. Both are worth
                 // waiting out rather than failing: the next scan is only a minute away and
@@ -121,12 +85,6 @@ internal sealed class BinanceClient(HttpClient http, BinanceOptions options)
 
         return TimeSpan.FromSeconds(Math.Pow(2, attempt));
     }
-
-    private static int? ReadUsedWeight(HttpResponseMessage response) =>
-        response.Headers.TryGetValues("X-MBX-USED-WEIGHT-1M", out var values)
-        && int.TryParse(values.FirstOrDefault(), out var weight)
-            ? weight
-            : null;
 
     /// <summary>Trims the query string so long parameter lists stay out of the log.</summary>
     private static string SafeUrl(string url) => url.Split('?')[0];
