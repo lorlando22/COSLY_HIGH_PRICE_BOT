@@ -64,6 +64,11 @@ jobs:
 
       # If the run fails this step is never reached, so a Telegram error never leaves a
       # coin marked as notified when it was never actually sent: the next run retries.
+      #
+      # The push is rebased and retried because anyone pushing to main between this run's
+      # checkout and its commit gets it rejected with "fetch first". The concurrency group
+      # rules out another run of this workflow racing, so the other side is a human — rare,
+      # but it costs a whole run's memory when it happens, and re-announces those coins.
       - name: Save notified symbols
         run: |
           git config user.name  'github-actions[bot]'
@@ -71,7 +76,15 @@ jobs:
           git add state/notified-symbols.json state/notified-stocks.json
           if git diff --staged --quiet; then
             echo "No changes to the state."
-          else
-            git commit -m "Update notified symbols [skip ci]"
-            git push
+            exit 0
           fi
+          git commit -m "Update notified symbols [skip ci]"
+          for attempt in 1 2 3; do
+            if git push; then
+              exit 0
+            fi
+            echo "Push rejected (attempt $attempt), rebasing onto main and retrying..."
+            git pull --rebase origin main
+          done
+          echo "::error::Could not push the state after 3 attempts."
+          exit 1
