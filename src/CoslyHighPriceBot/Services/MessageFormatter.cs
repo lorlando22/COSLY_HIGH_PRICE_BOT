@@ -14,12 +14,14 @@ internal static class MessageFormatter
 
     /// <summary>
     /// Crypto and tokenized stocks get their own message, each with its own title and
-    /// threshold, so the 4096-character limit applies to each one separately.
+    /// threshold, so the 4096-character limit applies to each one separately. Coins arrive
+    /// paired with the milestone they reached — the threshold itself for a first alert, or a
+    /// higher one for crypto that kept climbing (see <see cref="CoinFilter.Milestone"/>).
     /// </summary>
-    public static IReadOnlyList<string> Build(IReadOnlyList<Coin> coins, decimal minChangePercent)
+    public static IReadOnlyList<string> Build(IReadOnlyList<(Coin Coin, decimal Milestone)> coins, decimal minChangePercent)
     {
-        var bodies = Chunk(coins.Select((coin, index) => BuildBlock(coin, index + 1)));
-        var title = Title(coins[0].Kind);
+        var bodies = Chunk(coins.Select((entry, index) => BuildBlock(entry.Coin, entry.Milestone, minChangePercent, index + 1)));
+        var title = Title(coins[0].Coin.Kind);
 
         return bodies
             .Select((body, index) =>
@@ -40,15 +42,24 @@ internal static class MessageFormatter
         $"{title}\n" +
         $"<i>{DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC · threshold +{minChangePercent:0.##}%{part}</i>";
 
-    private static string BuildBlock(Coin coin, int position) =>
-        new StringBuilder()
-            .Append($"<b>{position}. {Escape(coin.Symbol)}</b> — <b>{FormatPercent(coin.ChangePercent)}</b> (24h)\n")
+    private static string BuildBlock(Coin coin, decimal milestone, decimal threshold, int position)
+    {
+        var block = new StringBuilder()
+            .Append($"<b>{position}. {Escape(coin.Symbol)}</b> — <b>{FormatPercent(coin.ChangePercent)}</b> (24h)\n");
+
+        // Only a milestone above the base threshold is worth a line — at the threshold
+        // itself the block reads exactly as it did before milestones existed.
+        if (milestone > threshold)
+            block.Append($"🎯 Milestone: +{milestone:0.##}%\n");
+
+        return block
             .Append($"💵 Price: {FormatPrice(coin.LastPrice)}\n")
             .Append($"📊 Open: {FormatPrice(coin.OpenPrice)}\n")
             .Append($"🔺 High: {FormatPrice(coin.HighPrice)}   🔻 Low: {FormatPrice(coin.LowPrice)}\n")
             .Append($"💰 24h Volume: {FormatVolume(coin.QuoteVolume)} {Escape(coin.QuoteAsset)}\n")
             .Append($"🔁 Trades: {coin.TradeCount:N0}\n\n")
             .ToString();
+    }
 
     private static string FormatPercent(decimal value) => value.ToString("+0.00;-0.00") + "%";
 

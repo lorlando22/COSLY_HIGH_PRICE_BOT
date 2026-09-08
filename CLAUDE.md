@@ -2,7 +2,9 @@
 
 .NET 9 console app that detects "pumps" on Binance **USD-M futures** and sends formatted
 alerts to Telegram: symbols whose 24-hour change cleared a threshold, crypto and tokenized
-stocks each with their own threshold, message and memory.
+stocks each with their own threshold, message and memory. Crypto that keeps climbing past
+its threshold gets re-announced every `Filter:CryptoStepPercent` (+150%, +200%, ...); a
+tokenized stock always gets a single alert per pump, exactly like today.
 
 Code lives in `Modules/DailyPumpModule.cs`. It reports a move that has already happened —
 by the time a coin reads +100%, the move is over — which is a known, accepted trade-off:
@@ -76,12 +78,13 @@ keeps them all). Age comes from **the date in the file name**, not its modificat
 date, so copying the folder doesn't make old logs look fresh. Files that don't match
 the `pumps-<yyyy-MM-dd>.log` pattern are left untouched.
 
-## One alert per symbol
+## One alert per symbol (per milestone, for crypto)
 
-Each state file maps symbol to **when its Telegram message went out**:
+Each state file maps symbol to **when its Telegram message went out and the milestone it
+reported**:
 
 ```json
-{ "HEMIUSDT": "2026-08-21T13:22:04+00:00" }
+{ "HEMIUSDT": { "notifiedAt": "2026-08-21T13:22:04+00:00", "milestone": 250 } }
 ```
 
 A symbol's entry survives while **either** of these holds, and only disappears when
@@ -90,26 +93,50 @@ both stop being true:
 - it's still above its threshold, or
 - its `Filter:CooldownHours` cooldown (8h by default) hasn't expired yet.
 
-Two rules fall out of that:
+That governs when a symbol is forgotten, not when it's alerted about again: a **new**
+milestone always sends, cooldown or not — the cooldown only exists to decide when a
+symbol that fell back below threshold stops being remembered.
 
-- **A sustained pump produces one message.** A coin three days above +100% is announced
-  once, because its entry never leaves the file.
+Two rules fall out of the "entry survives" part:
+
+- **A sustained pump that doesn't clear the next milestone produces one message.** A
+  crypto coin sitting at +120% (threshold 100, step 50 -> milestone 100) for three days is
+  announced once, because its entry never leaves the file and 120 never clears 150.
+  Tokenized stocks never step (see below), so for them this is simply "one message, ever,
+  per pump."
 - **Flapping produces one message.** A coin that crosses the threshold, dips, and crosses
   again minutes later stays in the file the whole time, so it isn't re-announced. This is
   the reason the cooldown exists: before it, the dip erased the memory and the second
   crossing counted as new, producing two or three messages for the same coin.
 
-**The timestamp is never refreshed.** It records when the message was sent, not when the
-coin was last seen. Refreshing it would keep a sustained pump in cooldown forever, and
-would rewrite the file on every run — which in the cloud means a git commit every 10
-minutes.
+**Crypto milestones.** `Filter:CryptoStepPercent` (50 by default) makes a crypto coin that
+keeps climbing get re-announced every step above the threshold: +100%, +150%, +200%, and
+so on (`CoinFilter.Milestone`). `0` collapses this to the old behaviour, a single alert per
+pump. Tokenized stocks always pass a step of `0` — they're a different product with a much
+lower threshold, where a +15% day is already exceptional, so stepping was never wanted for
+them. A coin seen for the **first time** already past a later milestone (e.g. +270% on a
+first sighting) gets **one** message for the milestone it's actually at (250), not one for
+every milestone it would have crossed on the way up.
+
+**The timestamp is refreshed only when a message actually goes out for a new milestone** —
+the first crossing of the threshold, or a later one clearing the next step. A pump that
+keeps scanning without reaching the next milestone leaves the timestamp untouched, so once
+it eventually drops below threshold the cooldown still counts from that last real event.
+That keeps the number of rewrites — and, in the cloud, git commits — bounded by how many
+milestones actually get hit, not by how many times the loop scans.
 
 Saving happens **after** sending: if Telegram fails, nothing is recorded and the next scan
 retries. Because each kind saves its own file right after its own send, a failure sending
 one kind doesn't discard the other's progress. A corrupted file doesn't crash the program
-— it's logged, ignored, and rewritten (the cost is a possible duplicate alert). A file
-still in the old array-only format is migrated on read, stamping the current time on each
-symbol.
+— it's logged, ignored, and rewritten (the cost is a possible duplicate alert).
+
+**Migration.** `AlertHistoryStore.Load` reads three shapes: a plain array of symbols (the
+oldest format, no timestamp at all), an object mapping symbol to an ISO timestamp string
+(the format before milestones existed), and the current `{ notifiedAt, milestone }` object.
+Both older shapes are treated as "notified just now, milestone unknown" (`milestone: null`)
+— silence over duplication is the rule, so on the next scan that entry silently adopts
+whatever milestone the coin is currently at instead of guessing and possibly re-announcing
+it. The file is rewritten in the current shape as soon as it's saved.
 
 **Only the last scan of a run decides the exit code.** The workflow skips the state commit
 when a run fails, so failing over a transient Telegram error in scan 3 of 13 would throw
@@ -167,6 +194,7 @@ Every adjustable value lives in `src/CoslyHighPriceBot/appsettings.json`:
 | `Filter:MinChangePercent` | Minimum 24h gain, in %, for **crypto**. |
 | `Filter:StockMinChangePercent` | Minimum 24h gain, in %, for **tokenized stocks**. |
 | `Filter:CooldownHours` | Hours before the same symbol can be alerted again. `0` disables it. |
+| `Filter:CryptoStepPercent` | Extra gain (in %) between milestone alerts for **crypto**, on top of `MinChangePercent`. `0` = a single alert per pump. Tokenized stocks never step. |
 | `Run:IntervalSeconds` | Seconds between scans when the loop is on. |
 | `Run:MaxRunMinutes` | How long a run keeps scanning. `0` = one scan and exit (the cloud default). Must stay below the cron interval. |
 | `State:NotifiedSymbolsFile` | Already-notified crypto. Relative = next to the executable. |

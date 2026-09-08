@@ -97,6 +97,20 @@ internal static class CoinFilter
         return kept.OrderByDescending(c => c.ChangePercent).ToList();
     }
 
+    /// <summary>
+    /// The milestone a coin has reached: the threshold itself, then one every `step` above it
+    /// (+100%, +150%, +200%... with a threshold of 100 and a step of 50). A step of 0 — or a
+    /// coin below the threshold — collapses to the threshold, which is the old behaviour.
+    /// </summary>
+    public static decimal Milestone(decimal changePercent, decimal threshold, decimal step)
+    {
+        if (step <= 0m || changePercent <= threshold)
+            return threshold;
+
+        var steps = Math.Floor((changePercent - threshold) / step);
+        return threshold + steps * step;
+    }
+
     /// <summary>Counts how many symbols on the exchange belong to the given quote asset.</summary>
     public static int CountQuotePairs(IEnumerable<Ticker24h> tickers, string quoteAsset) =>
         tickers.Count(t =>

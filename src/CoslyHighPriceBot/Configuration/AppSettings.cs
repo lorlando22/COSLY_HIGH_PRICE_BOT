@@ -33,6 +33,9 @@ internal sealed class AppSettings
         if (Filter.CooldownHours < 0 || double.IsNaN(Filter.CooldownHours))
             errors.Add("Filter:CooldownHours cannot be negative (0 = no cooldown).");
 
+        if (Filter.CryptoStepPercent < 0)
+            errors.Add("Filter:CryptoStepPercent cannot be negative (0 = a single alert per pump).");
+
         if (Run.IntervalSeconds < 0)
             errors.Add("Run:IntervalSeconds cannot be negative (0 = one scan per run).");
 
@@ -105,6 +108,13 @@ internal sealed class FilterOptions
     /// announced two or three times. 0 disables the cooldown. Fractional values are allowed.
     /// </summary>
     public double CooldownHours { get; set; } = 8;
+
+    /// <summary>
+    /// Extra gain (in %) between milestone alerts for crypto, on top of MinChangePercent:
+    /// with 100 and 50, a coin is announced at +100%, +150%, +200%... once per milestone.
+    /// 0 keeps the old behaviour (a single alert per pump). Tokenized stocks never step.
+    /// </summary>
+    public decimal CryptoStepPercent { get; set; } = 50m;
 }
 
 /// <summary>The program's scan loop: how often it scans and for how long a run keeps going.</summary>

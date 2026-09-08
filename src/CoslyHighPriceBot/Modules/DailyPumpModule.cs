@@ -17,8 +17,8 @@ internal sealed class DailyPumpModule(
     AlertHistoryStore cryptoStore,
     AlertHistoryStore stockStore)
 {
-    private readonly Dictionary<string, DateTimeOffset> notifiedCrypto = new(cryptoStore.Load(), StringComparer.Ordinal);
-    private readonly Dictionary<string, DateTimeOffset> notifiedStocks = new(stockStore.Load(), StringComparer.Ordinal);
+    private readonly Dictionary<string, AlertRecord> notifiedCrypto = new(cryptoStore.Load(), StringComparer.Ordinal);
+    private readonly Dictionary<string, AlertRecord> notifiedStocks = new(stockStore.Load(), StringComparer.Ordinal);
 
     /// <summary>
     /// A run scans many times. The bookkeeping lines are worth reading once, not once a
@@ -72,9 +72,11 @@ internal sealed class DailyPumpModule(
         }
 
         // Each kind is handled on its own: its own threshold, its own message and its own
-        // state file, so a failure sending one doesn't lose the other's progress.
-        var sent = await NotifyGroupAsync(CoinKind.Crypto, cryptoThreshold, cryptoStore, notifiedCrypto, coins, cancellationToken);
-        sent += await NotifyGroupAsync(CoinKind.TokenizedStock, stockThreshold, stockStore, notifiedStocks, coins, cancellationToken);
+        // state file, so a failure sending one doesn't lose the other's progress. Only crypto
+        // steps past its threshold in milestones; tokenized stocks keep today's single alert
+        // per pump, which a step of 0 collapses back to.
+        var sent = await NotifyGroupAsync(CoinKind.Crypto, cryptoThreshold, settings.Filter.CryptoStepPercent, cryptoStore, notifiedCrypto, coins, cancellationToken);
+        sent += await NotifyGroupAsync(CoinKind.TokenizedStock, stockThreshold, 0m, stockStore, notifiedStocks, coins, cancellationToken);
 
         if (sent > 0)
             AppLog.Info($"24h alert sent to Telegram ({sent} message(s)).");
@@ -90,8 +92,9 @@ internal sealed class DailyPumpModule(
     private async Task<int> NotifyGroupAsync(
         CoinKind kind,
         decimal threshold,
+        decimal step,
         AlertHistoryStore store,
-        Dictionary<string, DateTimeOffset> history,
+        Dictionary<string, AlertRecord> history,
         IReadOnlyList<Coin> coins,
         CancellationToken cancellationToken)
     {
@@ -104,13 +107,15 @@ internal sealed class DailyPumpModule(
 
         // An entry survives while the symbol is still above the threshold OR while its
         // cooldown is running. Dropping below the threshold no longer clears the memory on
-        // its own — that's what let a quick dip and re-cross produce a duplicate alert.
-        foreach (var (symbol, notifiedAt) in history.ToList())
+        // its own — that's what let a quick dip and re-cross produce a duplicate alert. A
+        // new milestone is not subject to any of this: it always alerts, cooldown or not —
+        // the cooldown only governs when a symbol that fell back below threshold is forgotten.
+        foreach (var (symbol, record) in history.ToList())
         {
             if (aboveThreshold.Contains(symbol))
                 continue;
 
-            var elapsed = now - notifiedAt;
+            var elapsed = now - record.NotifiedAt;
             if (elapsed < cooldown)
             {
                 if (firstScan)
@@ -123,14 +128,42 @@ internal sealed class DailyPumpModule(
             AppLog.Info($"{symbol} no longer exceeds the {label} threshold (+{threshold:0.##}%) and its cooldown expired: removed from {store.FileName}.");
         }
 
-        if (firstScan)
+        // For each candidate, work out the milestone it has reached (the threshold itself,
+        // then every `step` above it — 0 for tokenized stocks collapses this to "just the
+        // threshold", today's behaviour). Unseen symbol -> notify at that milestone. A legacy
+        // entry with no recorded milestone -> the repo's rule is silence over duplication, so
+        // it silently adopts the current milestone instead of guessing whether it's "new".
+        // Otherwise -> notify only if this milestone is strictly higher than the one on file.
+        var toNotify = new List<(Coin Coin, decimal Milestone)>();
+        var skipped = new List<string>();
+
+        foreach (var coin in group)
         {
-            var repeated = group.Where(c => history.ContainsKey(c.Symbol)).ToList();
-            if (repeated.Count > 0)
-                AppLog.Info($"Already notified {label}, skipped: {string.Join(", ", repeated.Select(c => c.Symbol))}");
+            var milestone = CoinFilter.Milestone(coin.ChangePercent, threshold, step);
+
+            if (!history.TryGetValue(coin.Symbol, out var record))
+            {
+                toNotify.Add((coin, milestone));
+                continue;
+            }
+
+            if (record.Milestone is null)
+            {
+                history[coin.Symbol] = record with { Milestone = milestone };
+                AppLog.Info($"{coin.Symbol}: legacy entry adopted at the +{milestone:0.##}% milestone; no message sent.");
+                skipped.Add(coin.Symbol);
+                continue;
+            }
+
+            if (milestone > record.Milestone)
+                toNotify.Add((coin, milestone));
+            else
+                skipped.Add(coin.Symbol);
         }
 
-        var toNotify = group.Where(c => !history.ContainsKey(c.Symbol)).ToList();
+        if (firstScan && skipped.Count > 0)
+            AppLog.Info($"Already notified {label}, skipped: {string.Join(", ", skipped)}");
+
         if (toNotify.Count == 0)
         {
             store.Save(history);
@@ -138,20 +171,27 @@ internal sealed class DailyPumpModule(
         }
 
         AppLog.Info($"{toNotify.Count} new {label}(s) above the threshold (+{threshold:0.##}%):");
-        foreach (var coin in toNotify)
+        foreach (var (coin, _) in toNotify)
             AppLog.Info($"  {coin.Symbol,-16} 24h: {coin.ChangePercent,8:+0.00;-0.00}%");
 
         var messages = MessageFormatter.Build(toNotify, threshold);
         foreach (var message in messages)
             await telegram.SendAsync(message, cancellationToken);
 
-        // The timestamp records when the message went out and is never refreshed later:
-        // refreshing it would extend the cooldown forever on a sustained pump, and would
-        // rewrite the file on every run — one git commit every 15 minutes in the cloud.
-        foreach (var coin in toNotify)
+        // The timestamp is refreshed only here, when a message actually goes out for a new
+        // milestone — the first crossing of the threshold or a later one clearing the next
+        // step. A pump that keeps scanning without reaching the next milestone leaves the
+        // timestamp untouched, so once it eventually drops below threshold the cooldown still
+        // counts from that last real event. That keeps the number of rewrites — and, in the
+        // cloud, git commits — bounded by how many milestones actually get hit, not by how
+        // many times the loop scans.
+        foreach (var (coin, milestone) in toNotify)
         {
-            history[coin.Symbol] = now;
-            AppLog.Info($"{coin.Symbol} exceeded the {label} threshold (+{coin.ChangePercent:0.00}% in 24h): notified via Telegram.");
+            history[coin.Symbol] = new AlertRecord(now, milestone);
+
+            AppLog.Info(milestone > threshold
+                ? $"{coin.Symbol} reached the +{milestone:0.##}% milestone (+{coin.ChangePercent:0.00}% in 24h): notified via Telegram."
+                : $"{coin.Symbol} exceeded the {label} threshold (+{coin.ChangePercent:0.00}% in 24h): notified via Telegram.");
         }
 
         // Only saved now: if the send fails, the next scan has to retry.
