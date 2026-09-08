@@ -1,12 +1,12 @@
 # COSLY High Price Bot
 
-A .NET 9 console app that watches **Binance USD-M futures** for pumps and alerts on
+A .NET 10 console app that watches **Binance USD-M futures** for pumps and alerts on
 Telegram. It detects symbols whose 24-hour change cleared a threshold, crypto and
 tokenized stocks each with their own threshold, message and state file:
 
 | Detector | Question | Default | Message | State file |
 | --- | --- | --- | --- | --- |
-| **24h pump** — crypto | What already moved a lot today? | +100% in 24h | 🚀 Crypto Pumps | `notified-symbols.json` |
+| **24h pump** — crypto | What already moved a lot today? | +100% in 24h, then every +50% | 🚀 Crypto Pumps | `notified-symbols.json` |
 | **24h pump** — tokenized stocks | Same, on a scale equities actually reach | +20% in 24h | 📈 Tokenized Stocks | `notified-stocks.json` |
 
 If nothing crosses its threshold, **no message is sent** — the run just logs that
@@ -14,6 +14,12 @@ nothing matched and exits cleanly. A symbol is announced once and then held quie
 it stays above its threshold, and for a configurable cooldown (8h by default). That
 cooldown is what stops a coin that dips and re-crosses the threshold minutes later from
 being announced two or three times.
+
+A crypto coin that keeps climbing isn't held quiet forever, though: it gets re-announced
+every `Filter:CryptoStepPercent` (+150%, +200%, +250%, ...) above its threshold, once per
+milestone reached — so a coin that runs from +100% to +400% in a day produces a handful of
+messages tracking the climb instead of just the first one. Tokenized stocks don't step;
+a +15% day is already exceptional for them, so a single alert per pump is enough.
 
 No server, no database. A run scans once and exits, so it fits a GitHub Actions cron (how
 it's deployed) or a Windows Task Scheduler job. Set `Run:MaxRunMinutes` to a positive
@@ -35,6 +41,9 @@ number and it keeps scanning instead, for a machine that stays on and has no cro
   up as huge, untradeable "pumps"
 - Sends a single alert per symbol — no repeats while it stays above its threshold,
   plus a cooldown (8h by default) so a dip-and-recross doesn't re-announce it
+- Crypto that keeps climbing gets re-announced every `Filter:CryptoStepPercent` above
+  its threshold (+100%, +150%, +200%, ...), once per milestone — tokenized stocks don't
+  step and keep a single alert per pump
 - Optional scan loop for long-running local sessions, off by default in the cloud where
   the cron already provides the cadence
 - Daily rotating log file with automatic retention cleanup
@@ -43,7 +52,7 @@ number and it keeps scanning instead, for a machine that stays on and has no cro
 
 ## Quick start
 
-Requires the [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0).
+Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0).
 
 1. Copy `src/CoslyHighPriceBot/appsettings.ci.json` to
    `src/CoslyHighPriceBot/appsettings.json` and fill in your Telegram bot token and chat ID.
@@ -97,6 +106,7 @@ Every adjustable value lives in `appsettings.json`:
 | `Filter:MinChangePercent` | Minimum 24h gain, in %, for crypto. |
 | `Filter:StockMinChangePercent` | Minimum 24h gain, in %, for tokenized stocks. |
 | `Filter:CooldownHours` | Hours before the same symbol can be alerted again. `0` disables it. |
+| `Filter:CryptoStepPercent` | Extra gain (in %) between milestone alerts for **crypto**, on top of `MinChangePercent`. `0` = a single alert per pump. Tokenized stocks never step. |
 | `Run:IntervalSeconds` | Seconds between scans when the loop is on. Default `60`. |
 | `Run:MaxRunMinutes` | How long a run keeps scanning. `0` (the default) = one scan and exit. |
 | `State:NotifiedSymbolsFile` | Tracks already-notified crypto. |
@@ -148,7 +158,7 @@ publish.cmd
 ```
 
 This produces a single-file `publish\CoslyHighPriceBot.exe` (~575 KB, framework-dependent
-— needs the .NET 9 runtime installed). Point a Task Scheduler action at that `.exe` on
+— needs the .NET 10 runtime installed). Point a Task Scheduler action at that `.exe` on
 whatever interval you like; the working directory doesn't matter, since configuration
 is always read from the executable's own folder.
 
@@ -168,7 +178,7 @@ src/CoslyHighPriceBot/
    ├─ CoinFilter.cs              candidates, then classify by contractType + per-kind threshold
    ├─ MessageFormatter.cs        HTML message text, split if it exceeds 4096 chars
    ├─ TelegramNotifier.cs        POST to sendMessage, per-chat send
-   ├─ AlertHistoryStore.cs       reads/writes symbol -> last-alerted timestamp
+   ├─ AlertHistoryStore.cs       reads/writes symbol -> last-alerted timestamp + milestone
    └─ AppLog.cs                  console + daily file in Logs/
 ```
 

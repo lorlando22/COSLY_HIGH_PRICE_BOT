@@ -1,6 +1,6 @@
 # COSLY_HIGH_PRICE_BOT
 
-.NET 9 console app that detects "pumps" on Binance **USD-M futures** and sends formatted
+.NET 10 console app that detects "pumps" on Binance **USD-M futures** and sends formatted
 alerts to Telegram: symbols whose 24-hour change cleared a threshold, crypto and tokenized
 stocks each with their own threshold, message and memory. Crypto that keeps climbing past
 its threshold gets re-announced every `Filter:CryptoStepPercent` (+150%, +200%, ...); a
@@ -171,7 +171,7 @@ publish.cmd
 
 Produces `publish\CoslyHighPriceBot.exe` (a single file, ~575 KB) next to its
 `appsettings.json`. It's *framework-dependent*: it needs
-the .NET 9 runtime on the machine. To make it runtime-independent, add
+the .NET 10 runtime on the machine. To make it runtime-independent, add
 `--self-contained true` to the script.
 
 The program reads its configuration from `AppContext.BaseDirectory`, so **the working
@@ -271,7 +271,9 @@ src/CoslyHighPriceBot/
 `exchangeInfo`, cached after its first fetch each run).
 
 No DI or Generic Host: one module constructed by hand in `Program.cs` doesn't need
-either. `global.json` pins SDK 9.0.317 because the machine defaults to a .NET 10 preview.
+either. `global.json` pins SDK 10.0.400 so a machine with several SDKs installed side by
+side (this one has 6, 9 and 10) builds with the same one every time instead of whichever
+`dotnet` happens to resolve to first.
 
 ## Things to keep in mind
 
