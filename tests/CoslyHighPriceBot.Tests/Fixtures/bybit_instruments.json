@@ -1,0 +1,162 @@
+{
+  "retCode": 0,
+  "retMsg": "OK",
+  "result": {
+    "category": "linear",
+    "list": [
+      {
+        "symbol": "BTCUSDT",
+        "contractType": "LinearPerpetual",
+        "status": "Trading",
+        "baseCoin": "BTC",
+        "settleCoin": "USDT",
+        "isPreListing": false,
+        "symbolType": "",
+        "underlyingTicker": ""
+      },
+      {
+        "symbol": "1000PEPEUSDT",
+        "contractType": "LinearPerpetual",
+        "status": "Trading",
+        "baseCoin": "1000PEPE",
+        "settleCoin": "USDT",
+        "isPreListing": false,
+        "symbolType": "",
+        "underlyingTicker": ""
+      },
+      {
+        "symbol": "1000NEIROCTOUSDT",
+        "contractType": "LinearPerpetual",
+        "status": "Trading",
+        "baseCoin": "1000NEIROCTO",
+        "settleCoin": "USDT",
+        "isPreListing": false,
+        "symbolType": "",
+        "underlyingTicker": ""
+      },
+      {
+        "symbol": "SHIB1000USDT",
+        "contractType": "LinearPerpetual",
+        "status": "Trading",
+        "baseCoin": "SHIB1000",
+        "settleCoin": "USDT",
+        "isPreListing": false,
+        "symbolType": "",
+        "underlyingTicker": ""
+      },
+      {
+        "symbol": "MEMEUSDT",
+        "contractType": "LinearPerpetual",
+        "status": "Trading",
+        "baseCoin": "MEME",
+        "settleCoin": "USDT",
+        "isPreListing": false,
+        "symbolType": "",
+        "underlyingTicker": ""
+      },
+      {
+        "symbol": "AMDSTOCKUSDT",
+        "contractType": "LinearPerpetual",
+        "status": "Trading",
+        "baseCoin": "AMDSTOCK",
+        "settleCoin": "USDT",
+        "isPreListing": false,
+        "symbolType": "stock",
+        "underlyingTicker": "AMD"
+      },
+      {
+        "symbol": "CATSTOCKUSDT",
+        "contractType": "LinearPerpetual",
+        "status": "Trading",
+        "baseCoin": "CATSTOCK",
+        "settleCoin": "USDT",
+        "isPreListing": false,
+        "symbolType": "stock",
+        "underlyingTicker": "CAT"
+      },
+      {
+        "symbol": "XAUUSDT",
+        "contractType": "LinearPerpetual",
+        "status": "Trading",
+        "baseCoin": "XAU",
+        "settleCoin": "USDT",
+        "isPreListing": false,
+        "symbolType": "commodity",
+        "underlyingTicker": ""
+      },
+      {
+        "symbol": "EURUSDUSDT",
+        "contractType": "LinearPerpetual",
+        "status": "Trading",
+        "baseCoin": "EURUSD",
+        "settleCoin": "USDT",
+        "isPreListing": false,
+        "symbolType": "forex",
+        "underlyingTicker": ""
+      },
+      {
+        "symbol": "ACUUSDT",
+        "contractType": "LinearPerpetual",
+        "status": "Trading",
+        "baseCoin": "ACU",
+        "settleCoin": "USDT",
+        "isPreListing": false,
+        "symbolType": "innovation",
+        "underlyingTicker": ""
+      },
+      {
+        "symbol": "BTCUSDT-25SEP26",
+        "contractType": "LinearFutures",
+        "status": "Trading",
+        "baseCoin": "BTC",
+        "settleCoin": "USDT",
+        "isPreListing": false,
+        "symbolType": "",
+        "underlyingTicker": ""
+      },
+      {
+        "symbol": "SHIB1000PERP",
+        "contractType": "LinearPerpetual",
+        "status": "Trading",
+        "baseCoin": "SHIB1000",
+        "settleCoin": "USDC",
+        "isPreListing": false,
+        "symbolType": "",
+        "underlyingTicker": ""
+      },
+      {
+        "symbol": "NEWLISTUSDT",
+        "contractType": "LinearPerpetual",
+        "status": "PendingOpen",
+        "baseCoin": "NEWLIST",
+        "settleCoin": "USDT",
+        "isPreListing": false,
+        "symbolType": "",
+        "underlyingTicker": ""
+      },
+      {
+        "symbol": "PRELISTUSDT",
+        "contractType": "LinearPerpetual",
+        "status": "Trading",
+        "baseCoin": "PRELIST",
+        "settleCoin": "USDT",
+        "isPreListing": true,
+        "symbolType": "",
+        "underlyingTicker": ""
+      },
+      {
+        "symbol": "REITXUSDT",
+        "contractType": "LinearPerpetual",
+        "status": "Trading",
+        "baseCoin": "REITX",
+        "settleCoin": "USDT",
+        "isPreListing": false,
+        "symbolType": "reit",
+        "underlyingTicker": "REITX"
+      }
+    ],
+    "nextPageCursor": ""
+  },
+  "retExtInfo": {},
+  "time": 1789157086000
+}

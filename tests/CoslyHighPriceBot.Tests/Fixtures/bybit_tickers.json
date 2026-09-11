@@ -1,0 +1,101 @@
+{
+  "retCode": 0,
+  "retMsg": "OK",
+  "result": {
+    "category": "linear",
+    "list": [
+      {
+        "symbol": "BTCUSDT",
+        "lastPrice": "77390.50",
+        "prevPrice24h": "77110.80",
+        "price24hPcnt": "0.003627",
+        "highPrice24h": "79909.70",
+        "lowPrice24h": "75903.00",
+        "turnover24h": "6441382140.7336"
+      },
+      {
+        "symbol": "1000PEPEUSDT",
+        "lastPrice": "0.0033060",
+        "prevPrice24h": "0.0033090",
+        "price24hPcnt": "-0.000906",
+        "highPrice24h": "0.0035710",
+        "lowPrice24h": "0.0031860",
+        "turnover24h": "81805656.4425"
+      },
+      {
+        "symbol": "1000NEIROCTOUSDT",
+        "lastPrice": "0.08335",
+        "prevPrice24h": "0.08319",
+        "price24hPcnt": "0.001923",
+        "highPrice24h": "0.08680",
+        "lowPrice24h": "0.07951",
+        "turnover24h": "529188.2039"
+      },
+      {
+        "symbol": "SHIB1000USDT",
+        "lastPrice": "0.005189",
+        "prevPrice24h": "0.005090",
+        "price24hPcnt": "0.019449",
+        "highPrice24h": "0.005402",
+        "lowPrice24h": "0.004992",
+        "turnover24h": "6405028.9782"
+      },
+      {
+        "symbol": "MEMEUSDT",
+        "lastPrice": "0.0005179",
+        "prevPrice24h": "0.0005082",
+        "price24hPcnt": "0.019086",
+        "highPrice24h": "0.0005342",
+        "lowPrice24h": "0.0004948",
+        "turnover24h": "517221.0589"
+      },
+      {
+        "symbol": "AMDSTOCKUSDT",
+        "lastPrice": "515.90",
+        "prevPrice24h": "503.71",
+        "price24hPcnt": "0.0242",
+        "highPrice24h": "521.61",
+        "lowPrice24h": "500.00",
+        "turnover24h": "2369008.8022"
+      },
+      {
+        "symbol": "CATSTOCKUSDT",
+        "lastPrice": "820.14",
+        "prevPrice24h": "806.45",
+        "price24hPcnt": "0.016975",
+        "highPrice24h": "827.52",
+        "lowPrice24h": "804.98",
+        "turnover24h": "149747.5843"
+      },
+      {
+        "symbol": "XAUUSDT",
+        "lastPrice": "4354.90",
+        "prevPrice24h": "4328.80",
+        "price24hPcnt": "0.006029",
+        "highPrice24h": "4407.74",
+        "lowPrice24h": "4296.30",
+        "turnover24h": "156428122.1701"
+      },
+      {
+        "symbol": "EURUSDUSDT",
+        "lastPrice": "1.16105",
+        "prevPrice24h": "1.16113",
+        "price24hPcnt": "-0.000068",
+        "highPrice24h": "1.16276",
+        "lowPrice24h": "1.15900",
+        "turnover24h": "36863.2388"
+      },
+      {
+        "symbol": "ACUUSDT",
+        "lastPrice": "0.12142",
+        "prevPrice24h": "0.11950",
+        "price24hPcnt": "0.016066",
+        "highPrice24h": "0.12475",
+        "lowPrice24h": "0.11847",
+        "turnover24h": "223438.9027"
+      }
+    ]
+  },
+  "retExtInfo": {},
+  "time": 1789157086000
+}

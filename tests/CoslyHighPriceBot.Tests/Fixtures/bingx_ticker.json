@@ -1,0 +1,123 @@
+{
+  "code": 0,
+  "msg": "",
+  "data": [
+    {
+      "symbol": "BTC-USDT",
+      "priceChangePercent": "0.36",
+      "lastPrice": "77407.8",
+      "openPrice": "77133.3",
+      "highPrice": "79868.4",
+      "lowPrice": "76022.6",
+      "quoteVolume": "1109067124.72"
+    },
+    {
+      "symbol": "ETH-USDT",
+      "priceChangePercent": "3.35",
+      "lastPrice": "2544.01",
+      "openPrice": "2461.43",
+      "highPrice": "2667.00",
+      "lowPrice": "2433.04",
+      "quoteVolume": "813433427.41"
+    },
+    {
+      "symbol": "POWER-USDT",
+      "priceChangePercent": "0.88",
+      "lastPrice": "0.08820",
+      "openPrice": "0.08743",
+      "highPrice": "0.08957",
+      "lowPrice": "0.08677",
+      "quoteVolume": "1253308.75"
+    },
+    {
+      "symbol": "MEME-USDT",
+      "priceChangePercent": "1.91",
+      "lastPrice": "0.0005175",
+      "openPrice": "0.0005076",
+      "highPrice": "0.0005338",
+      "lowPrice": "0.0004951",
+      "quoteVolume": "2288962.00"
+    },
+    {
+      "symbol": "AMEMECOIN-USDT",
+      "priceChangePercent": "-20.96",
+      "lastPrice": "0.0494",
+      "openPrice": "0.0625",
+      "highPrice": "0.0634",
+      "lowPrice": "0.0409",
+      "quoteVolume": "1014600.88"
+    },
+    {
+      "symbol": "1000PEPE-USDT",
+      "priceChangePercent": "0.04",
+      "lastPrice": "0.0033073",
+      "openPrice": "0.0033061",
+      "highPrice": "0.0035720",
+      "lowPrice": "0.0032053",
+      "quoteVolume": "27614482.03"
+    },
+    {
+      "symbol": "NEIROCTO-USDT",
+      "priceChangePercent": "0.27",
+      "lastPrice": "0.00008333",
+      "openPrice": "0.00008308",
+      "highPrice": "0.00008669",
+      "lowPrice": "0.00007956",
+      "quoteVolume": "6147084.16"
+    },
+    {
+      "symbol": "MONAD-USDT",
+      "priceChangePercent": "-0.59",
+      "lastPrice": "0.02356",
+      "openPrice": "0.02370",
+      "highPrice": "0.02484",
+      "lowPrice": "0.02248",
+      "quoteVolume": "2437416.86"
+    },
+    {
+      "symbol": "NCSKTSLA2USD-USDT",
+      "priceChangePercent": "0.43",
+      "lastPrice": "365.42",
+      "openPrice": "363.85",
+      "highPrice": "368.82",
+      "lowPrice": "360.64",
+      "quoteVolume": "2707511.93"
+    },
+    {
+      "symbol": "NCCOGOLD2USD-USDT",
+      "priceChangePercent": "0.58",
+      "lastPrice": "4354.39",
+      "openPrice": "4329.38",
+      "highPrice": "4409.01",
+      "lowPrice": "4297.51",
+      "quoteVolume": "1121397556.76"
+    },
+    {
+      "symbol": "NCSISP5002USD-USDT",
+      "priceChangePercent": "0.80",
+      "lastPrice": "7654.1",
+      "openPrice": "7593.2",
+      "highPrice": "7673.4",
+      "lowPrice": "7589.0",
+      "quoteVolume": "10589934.04"
+    },
+    {
+      "symbol": "NCFXEUR2USD-USDT",
+      "priceChangePercent": "-0.12",
+      "lastPrice": "1.15959",
+      "openPrice": "1.16100",
+      "highPrice": "1.16175",
+      "lowPrice": "1.15731",
+      "quoteVolume": "7012858.92"
+    },
+    {
+      "symbol": "BTC-USDC",
+      "priceChangePercent": "0.36",
+      "lastPrice": "77397.3",
+      "openPrice": "77119.4",
+      "highPrice": "79821.4",
+      "lowPrice": "76000.0",
+      "quoteVolume": "13087274.00"
+    }
+  ]
+}

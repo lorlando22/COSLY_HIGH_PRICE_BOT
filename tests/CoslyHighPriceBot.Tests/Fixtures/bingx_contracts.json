@@ -1,0 +1,96 @@
+{
+  "code": 0,
+  "msg": "",
+  "data": [
+    {
+      "symbol": "BTC-USDT",
+      "currency": "USDT",
+      "status": 1,
+      "displayName": "BTC-USDT"
+    },
+    {
+      "symbol": "ETH-USDT",
+      "currency": "USDT",
+      "status": 1,
+      "displayName": "ETH-USDT"
+    },
+    {
+      "symbol": "POWER-USDT",
+      "currency": "USDT",
+      "status": 1,
+      "displayName": "POWER-USDT"
+    },
+    {
+      "symbol": "MEME-USDT",
+      "currency": "USDT",
+      "status": 1,
+      "displayName": "MEME-USDT"
+    },
+    {
+      "symbol": "AMEMECOIN-USDT",
+      "currency": "USDT",
+      "status": 1,
+      "displayName": "MEME-USDT"
+    },
+    {
+      "symbol": "1000PEPE-USDT",
+      "currency": "USDT",
+      "status": 1,
+      "displayName": "1000PEPE-USDT"
+    },
+    {
+      "symbol": "NEIROCTO-USDT",
+      "currency": "USDT",
+      "status": 1,
+      "displayName": "NEIRO-USDT"
+    },
+    {
+      "symbol": "MONAD-USDT",
+      "currency": "USDT",
+      "status": 1,
+      "displayName": "MON-USDT"
+    },
+    {
+      "symbol": "NCSKTSLA2USD-USDT",
+      "currency": "USDT",
+      "status": 1,
+      "displayName": "TSLA-USDT"
+    },
+    {
+      "symbol": "NCSKSITMUSDT-USDT",
+      "currency": "USDT",
+      "status": 1,
+      "displayName": "SITM-USDT"
+    },
+    {
+      "symbol": "NCCOGOLD2USD-USDT",
+      "currency": "USDT",
+      "status": 1,
+      "displayName": "GOLD(XAU)-USDT"
+    },
+    {
+      "symbol": "NCSISP5002USD-USDT",
+      "currency": "USDT",
+      "status": 1,
+      "displayName": "SP500-USDT"
+    },
+    {
+      "symbol": "NCFXEUR2USD-USDT",
+      "currency": "USDT",
+      "status": 1,
+      "displayName": "EURUSD-USDT"
+    },
+    {
+      "symbol": "BTC-USDC",
+      "currency": "USDC",
+      "status": 1,
+      "displayName": "BTC-USDC"
+    },
+    {
+      "symbol": "NCCOCOFFEE2USD-USDT",
+      "currency": "USDT",
+      "status": 25,
+      "displayName": "Coffee-USDT"
+    }
+  ]
+}

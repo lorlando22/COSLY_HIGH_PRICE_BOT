@@ -14,14 +14,16 @@ internal static class MessageFormatter
 
     /// <summary>
     /// Crypto and tokenized stocks get their own message, each with its own title and
-    /// threshold, so the 4096-character limit applies to each one separately. Coins arrive
+    /// threshold, so the 4096-character limit applies to each one separately. Groups arrive
     /// paired with the milestone they reached — the threshold itself for a first alert, or a
     /// higher one for crypto that kept climbing (see <see cref="CoinFilter.Milestone"/>).
     /// </summary>
-    public static IReadOnlyList<string> Build(IReadOnlyList<(Coin Coin, decimal Milestone)> coins, decimal minChangePercent)
+    public static IReadOnlyList<string> Build(
+        IReadOnlyList<(CoinGroup Group, decimal Milestone)> groups, decimal minChangePercent, string quoteAsset)
     {
-        var bodies = Chunk(coins.Select((entry, index) => BuildBlock(entry.Coin, entry.Milestone, minChangePercent, index + 1)));
-        var title = Title(coins[0].Coin.Kind);
+        var bodies = Chunk(groups.Select((entry, index) =>
+            BuildBlock(entry.Group, entry.Milestone, minChangePercent, index + 1, quoteAsset)));
+        var title = Title(groups[0].Group.Kind);
 
         return bodies
             .Select((body, index) =>
@@ -42,23 +44,44 @@ internal static class MessageFormatter
         $"{title}\n" +
         $"<i>{DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC · threshold +{minChangePercent:0.##}%{part}</i>";
 
-    private static string BuildBlock(Coin coin, decimal milestone, decimal threshold, int position)
+    private static string BuildBlock(CoinGroup group, decimal milestone, decimal threshold, int position, string quoteAsset)
     {
+        // Both are guaranteed non-null: a group only reaches here because at least one of
+        // its quotes cleared the threshold (see DailyPumpModule).
+        var bestChange = group.BestQualifyingChangePercent(threshold)!.Value;
+        var bestQuote = group.BestQualifyingQuote(threshold)!;
+
         var block = new StringBuilder()
-            .Append($"<b>{position}. {Escape(coin.Symbol)}</b> — <b>{FormatPercent(coin.ChangePercent)}</b> (24h)\n");
+            .Append($"<b>{position}. {Escape(group.Key)}</b> — <b>{FormatPercent(bestChange)}</b> (24h)\n");
 
         // Only a milestone above the base threshold is worth a line — at the threshold
         // itself the block reads exactly as it did before milestones existed.
         if (milestone > threshold)
             block.Append($"🎯 Milestone: +{milestone:0.##}%\n");
 
-        return block
-            .Append($"💵 Price: {FormatPrice(coin.LastPrice)}\n")
-            .Append($"📊 Open: {FormatPrice(coin.OpenPrice)}\n")
-            .Append($"🔺 High: {FormatPrice(coin.HighPrice)}   🔻 Low: {FormatPrice(coin.LowPrice)}\n")
-            .Append($"💰 24h Volume: {FormatVolume(coin.QuoteVolume)} {Escape(coin.QuoteAsset)}\n")
-            .Append($"🔁 Trades: {coin.TradeCount:N0}\n\n")
-            .ToString();
+        // Every exchange the coin is tradeable on, in priority order, not just the ones that
+        // qualify — a coin can be pumping hard on one exchange and barely moving on another,
+        // and that's worth showing.
+        for (var i = 0; i < group.Quotes.Count; i++)
+        {
+            var quote = group.Quotes[i];
+            var prefix = i == 0 ? "🏦 " : "   ";
+            var check = quote.ChangePercent >= threshold ? " ✅" : "";
+            block.Append($"{prefix}{Escape(quote.ExchangeName)} {Escape(quote.DisplaySymbol ?? quote.Symbol)}: {FormatPercent(quote.ChangePercent)}{check}\n");
+        }
+
+        block
+            .Append($"💵 Price: {FormatPrice(bestQuote.LastPrice)} ({Escape(bestQuote.ExchangeName)})\n")
+            .Append($"📊 Open: {FormatPrice(bestQuote.OpenPrice)}\n")
+            .Append($"🔺 High: {FormatPrice(bestQuote.HighPrice)}   🔻 Low: {FormatPrice(bestQuote.LowPrice)}\n")
+            .Append($"💰 24h Volume: {FormatVolume(bestQuote.QuoteVolume)} {Escape(quoteAsset)}\n");
+
+        // Only Binance reports a trade count; Bybit and BingX don't, so the line is skipped
+        // rather than shown as a misleading zero.
+        if (bestQuote.TradeCount is { } trades)
+            block.Append($"🔁 Trades: {trades:N0}\n");
+
+        return block.Append('\n').ToString();
     }
 
     private static string FormatPercent(decimal value) => value.ToString("+0.00;-0.00") + "%";
@@ -97,7 +120,7 @@ internal static class MessageFormatter
         _ => value.ToString("0.##")
     };
 
-    /// <summary>Escaping required for parse_mode HTML.</summary>
-    private static string Escape(string value) =>
+    /// <summary>Escaping required for parse_mode HTML. Every dynamic string goes through this — a coin's name can be Chinese (哈基米), which Binance and BingX both use for some display names.</summary>
+    internal static string Escape(string value) =>
         value.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
 }

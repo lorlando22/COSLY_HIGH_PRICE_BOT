@@ -3,23 +3,62 @@ namespace CoslyHighPriceBot.Configuration;
 /// <summary>Mirrors appsettings.json. Populated via IConfiguration.Get&lt;AppSettings&gt;().</summary>
 internal sealed class AppSettings
 {
+    public ExchangesOptions Exchanges { get; set; } = new();
     public BinanceOptions Binance { get; set; } = new();
+    public BybitOptions Bybit { get; set; } = new();
+    public BingXOptions BingX { get; set; } = new();
     public FilterOptions Filter { get; set; } = new();
     public RunOptions Run { get; set; } = new();
     public TelegramOptions Telegram { get; set; } = new();
     public StateOptions State { get; set; } = new();
     public LoggingOptions Logging { get; set; } = new();
 
+    private static readonly string[] KnownExchanges = ["Binance", "Bybit", "BingX"];
+
     /// <summary>Returns the list of configuration problems. Empty = everything is fine.</summary>
     public IReadOnlyList<string> Validate()
     {
         var errors = new List<string>();
 
-        if (!Uri.TryCreate(Binance.Ticker24hUrl, UriKind.Absolute, out _))
-            errors.Add("Binance:Ticker24hUrl must be an absolute URL.");
+        var priority = Exchanges.GetPriority();
+        foreach (var name in priority)
+            if (!KnownExchanges.Contains(name, StringComparer.Ordinal))
+                errors.Add($"Exchanges:Priority has an unknown exchange '{name}'.");
 
-        if (!Uri.TryCreate(Binance.ExchangeInfoUrl, UriKind.Absolute, out _))
-            errors.Add("Binance:ExchangeInfoUrl must be an absolute URL.");
+        if (priority.Distinct(StringComparer.Ordinal).Count() != priority.Count)
+            errors.Add("Exchanges:Priority cannot list the same exchange twice.");
+
+        if (!Binance.Enabled && !Bybit.Enabled && !BingX.Enabled)
+            errors.Add("At least one exchange must be enabled.");
+
+        // Only the enabled exchanges' URLs matter: a disabled one is never called, so a
+        // placeholder or blank value there shouldn't block startup.
+        if (Binance.Enabled)
+        {
+            if (!Uri.TryCreate(Binance.Ticker24hUrl, UriKind.Absolute, out _))
+                errors.Add("Binance:Ticker24hUrl must be an absolute URL.");
+
+            if (!Uri.TryCreate(Binance.ExchangeInfoUrl, UriKind.Absolute, out _))
+                errors.Add("Binance:ExchangeInfoUrl must be an absolute URL.");
+        }
+
+        if (Bybit.Enabled)
+        {
+            if (!Uri.TryCreate(Bybit.TickersUrl, UriKind.Absolute, out _))
+                errors.Add("Bybit:TickersUrl must be an absolute URL.");
+
+            if (!Uri.TryCreate(Bybit.InstrumentsUrl, UriKind.Absolute, out _))
+                errors.Add("Bybit:InstrumentsUrl must be an absolute URL.");
+        }
+
+        if (BingX.Enabled)
+        {
+            if (!Uri.TryCreate(BingX.TickerUrl, UriKind.Absolute, out _))
+                errors.Add("BingX:TickerUrl must be an absolute URL.");
+
+            if (!Uri.TryCreate(BingX.ContractsUrl, UriKind.Absolute, out _))
+                errors.Add("BingX:ContractsUrl must be an absolute URL.");
+        }
 
         if (string.IsNullOrWhiteSpace(Binance.QuoteAsset))
             errors.Add("Binance:QuoteAsset cannot be empty (e.g.: USDT).");
@@ -70,8 +109,27 @@ internal sealed class AppSettings
     }
 }
 
+internal sealed class ExchangesOptions
+{
+    /// <summary>
+    /// Comma-separated exchange names, highest priority first: which exchange's
+    /// price/open/high/low/volume/trade-count a pump message shows for a coin listed on more
+    /// than one, and which state-file key a coin gets the first time it's seen. A plain
+    /// string, not a List&lt;string&gt;: the config binder appends to a non-empty list
+    /// default instead of replacing it, so a comma-separated string is what lets an
+    /// environment variable override it cleanly (Exchanges__Priority). An exchange that's
+    /// enabled but missing from this list is used last, in whatever order it was registered.
+    /// </summary>
+    public string Priority { get; set; } = "Binance,Bybit,BingX";
+
+    public IReadOnlyList<string> GetPriority() =>
+        Priority.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+}
+
 internal sealed class BinanceOptions
 {
+    public bool Enabled { get; set; } = true;
+
     /// <summary>
     /// USD-M futures 24-hour ticker. With no query string it returns every symbol.
     /// Served through www.binance.com on purpose: see the note about 451 in the README.
@@ -81,7 +139,7 @@ internal sealed class BinanceOptions
     /// <summary>Futures exchange info: symbol status and contract type. Takes no filters.</summary>
     public string ExchangeInfoUrl { get; set; } = "https://www.binance.com/fapi/v1/exchangeInfo";
 
-    /// <summary>Quote asset to consider; symbols ending in it are the ones kept.</summary>
+    /// <summary>Quote asset to consider; symbols matching it are the ones kept.</summary>
     public string QuoteAsset { get; set; } = "USDT";
 
     /// <summary>
@@ -89,6 +147,32 @@ internal sealed class BinanceOptions
     /// their 24h stats frozen and generate pump alerts for coins that can't actually be traded.
     /// </summary>
     public bool OnlyTradingSymbols { get; set; } = true;
+}
+
+internal sealed class BybitOptions
+{
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>Linear (USDT/USDC-margined) 24h ticker for every symbol.</summary>
+    public string TickersUrl { get; set; } = "https://api.bybit.com/v5/market/tickers?category=linear";
+
+    /// <summary>
+    /// Instrument catalog: status, contract type, settlement coin and symbol tier. Paginated
+    /// (see BybitClient) since the endpoint defaults to 500 per page and Bybit lists more
+    /// linear contracts than that.
+    /// </summary>
+    public string InstrumentsUrl { get; set; } = "https://api.bybit.com/v5/market/instruments-info?category=linear&limit=1000";
+}
+
+internal sealed class BingXOptions
+{
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>USDT-margined perpetuals 24h ticker for every symbol.</summary>
+    public string TickerUrl { get; set; } = "https://open-api.bingx.com/openApi/swap/v2/quote/ticker";
+
+    /// <summary>Contract catalog: currency, status and display name.</summary>
+    public string ContractsUrl { get; set; } = "https://open-api.bingx.com/openApi/swap/v2/quote/contracts";
 }
 
 internal sealed class FilterOptions

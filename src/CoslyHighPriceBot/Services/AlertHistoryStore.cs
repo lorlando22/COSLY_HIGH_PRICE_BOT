@@ -77,6 +77,55 @@ internal sealed class AlertHistoryStore(string filePath)
         }
     }
 
+    /// <summary>
+    /// Migrates a history loaded from the single-exchange era, where the key was a Binance
+    /// symbol (HEMIUSDT), to the multi-exchange key: the coin's own name (HEMI). A key ending
+    /// in <paramref name="quoteAsset"/> with more than that suffix is assumed to be one of
+    /// these legacy keys. For crypto, the multiplier a coin might carry is normalized too
+    /// (1000PEPEUSDT -> PEPE), so the entry lines up with the alias grouping used everywhere
+    /// else — <paramref name="normalizeMultiplier"/> is false for tokenized stocks, which
+    /// never carry one. A collision after migration (two legacy keys mapping to the same
+    /// coin) keeps whichever entry <see cref="PreferHigherMilestone"/> prefers.
+    /// </summary>
+    public static IReadOnlyDictionary<string, AlertRecord> MigrateLegacyKeys(
+        IReadOnlyDictionary<string, AlertRecord> history, string quoteAsset, bool normalizeMultiplier)
+    {
+        var migrated = new Dictionary<string, AlertRecord>(StringComparer.Ordinal);
+
+        foreach (var (key, record) in history)
+        {
+            var newKey = key;
+            if (key.Length > quoteAsset.Length && key.EndsWith(quoteAsset, StringComparison.Ordinal))
+                newKey = key[..^quoteAsset.Length];
+
+            if (normalizeMultiplier)
+                newKey = SymbolNormalizer.Normalize(newKey).Name;
+
+            migrated[newKey] = migrated.TryGetValue(newKey, out var existing)
+                ? PreferHigherMilestone(existing, record)
+                : record;
+        }
+
+        return migrated;
+    }
+
+    /// <summary>
+    /// Which of two alert records for the same coin is the one worth keeping: the higher
+    /// milestone wins (it's strictly more informative), and the more recent timestamp breaks
+    /// a tie. Used both to resolve a migration collision and to pick among several legacy
+    /// entries that all turn out to be aliases of the same cross-exchange group.
+    /// </summary>
+    internal static AlertRecord PreferHigherMilestone(AlertRecord a, AlertRecord b)
+    {
+        var milestoneA = a.Milestone ?? decimal.MinValue;
+        var milestoneB = b.Milestone ?? decimal.MinValue;
+
+        if (milestoneA != milestoneB)
+            return milestoneA > milestoneB ? a : b;
+
+        return a.NotifiedAt >= b.NotifiedAt ? a : b;
+    }
+
     public void Save(IReadOnlyDictionary<string, AlertRecord> history)
     {
         // The path may point to a folder that doesn't exist yet (e.g. state/ in CI).
