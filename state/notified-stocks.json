@@ -7,20 +7,12 @@
     "notifiedAt": "2026-09-18T23:04:57.8440378+00:00",
     "milestone": 20
   },
-  "FWDI": {
-    "notifiedAt": "2026-09-18T15:34:15.4818444+00:00",
-    "milestone": 20
-  },
   "MSTU": {
     "notifiedAt": "2026-09-18T13:43:43.2202809+00:00",
     "milestone": 20
   },
   "MSTX": {
     "notifiedAt": "2026-09-18T13:43:43.2202809+00:00",
-    "milestone": 20
-  },
-  "SNXX": {
-    "notifiedAt": "2026-09-18T20:05:34.1709478+00:00",
     "milestone": 20
   }
 }
