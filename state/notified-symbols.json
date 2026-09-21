@@ -1,4 +1,8 @@
 {
+  "DELTA": {
+    "notifiedAt": "2026-09-21T19:05:03.5469417+00:00",
+    "milestone": 100
+  },
   "GPSOL": {
     "notifiedAt": "2026-09-21T11:52:10.9610873+00:00",
     "milestone": 150
