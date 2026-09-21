@@ -1,4 +1,8 @@
 {
+  "GPSOL": {
+    "notifiedAt": "2026-09-21T11:35:02.4378962+00:00",
+    "milestone": 100
+  },
   "ORBIO": {
     "notifiedAt": "2026-09-21T06:13:06.7920275+00:00",
     "milestone": 100
