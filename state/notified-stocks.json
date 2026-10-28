@@ -1,14 +1,14 @@
 {
-  "CRML": {
-    "notifiedAt": "2026-10-27T20:04:49.2047649+00:00",
-    "milestone": 20
-  },
   "CSOPSKHYNIX2L": {
     "notifiedAt": "2026-10-28T05:26:58.4164529+00:00",
     "milestone": 20
   },
   "KMI": {
     "notifiedAt": "2026-10-28T08:06:08.4368588+00:00",
+    "milestone": 20
+  },
+  "MRNX": {
+    "notifiedAt": "2026-10-28T13:42:46.1182769+00:00",
     "milestone": 20
   },
   "SKUU": {
