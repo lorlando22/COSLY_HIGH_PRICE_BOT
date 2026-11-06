@@ -15,12 +15,20 @@
     "notifiedAt": "2026-11-06T15:52:23.1005595+00:00",
     "milestone": 20
   },
+  "INFQ": {
+    "notifiedAt": "2026-11-06T17:32:25.0201928+00:00",
+    "milestone": 20
+  },
   "IRE": {
     "notifiedAt": "2026-11-06T15:15:23.5498655+00:00",
     "milestone": 20
   },
   "IREN": {
     "notifiedAt": "2026-11-06T15:52:23.1005595+00:00",
+    "milestone": 20
+  },
+  "LEU": {
+    "notifiedAt": "2026-11-06T17:32:25.0201928+00:00",
     "milestone": 20
   },
   "NBIL": {
@@ -37,6 +45,10 @@
   },
   "QNTX": {
     "notifiedAt": "2026-11-06T16:03:57.9518868+00:00",
+    "milestone": 20
+  },
+  "RGTI": {
+    "notifiedAt": "2026-11-06T17:32:25.0201928+00:00",
     "milestone": 20
   },
   "RKLX": {
