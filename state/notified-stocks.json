@@ -3,8 +3,32 @@
     "notifiedAt": "2026-11-06T15:22:27.0602826+00:00",
     "milestone": 20
   },
+  "FLY": {
+    "notifiedAt": "2026-11-06T15:52:23.1005595+00:00",
+    "milestone": 20
+  },
   "IRE": {
     "notifiedAt": "2026-11-06T15:15:23.5498655+00:00",
+    "milestone": 20
+  },
+  "IREN": {
+    "notifiedAt": "2026-11-06T15:52:23.1005595+00:00",
+    "milestone": 20
+  },
+  "NBIL": {
+    "notifiedAt": "2026-11-06T15:52:23.1005595+00:00",
+    "milestone": 20
+  },
+  "OKLO": {
+    "notifiedAt": "2026-11-06T15:52:23.1005595+00:00",
+    "milestone": 20
+  },
+  "RKLX": {
+    "notifiedAt": "2026-11-06T15:52:23.1005595+00:00",
+    "milestone": 20
+  },
+  "SMCX": {
+    "notifiedAt": "2026-11-06T15:52:23.1005595+00:00",
     "milestone": 20
   }
 }
