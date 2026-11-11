@@ -7,6 +7,14 @@
     "notifiedAt": "2026-11-11T14:32:59.1446739+00:00",
     "milestone": 20
   },
+  "AXTI": {
+    "notifiedAt": "2026-11-11T15:52:16.5245298+00:00",
+    "milestone": 20
+  },
+  "COHX": {
+    "notifiedAt": "2026-11-11T15:52:16.5245298+00:00",
+    "milestone": 20
+  },
   "CRWG": {
     "notifiedAt": "2026-11-11T14:32:59.1446739+00:00",
     "milestone": 20
@@ -17,6 +25,10 @@
   },
   "CSOPSKHYNIX2L": {
     "notifiedAt": "2026-11-11T13:42:09.3109625+00:00",
+    "milestone": 20
+  },
+  "KORU": {
+    "notifiedAt": "2026-11-11T15:52:16.5245298+00:00",
     "milestone": 20
   },
   "LITX": {
@@ -59,6 +71,10 @@
     "notifiedAt": "2026-11-11T13:42:09.3109625+00:00",
     "milestone": 20
   },
+  "SKUU": {
+    "notifiedAt": "2026-11-11T15:52:16.5245298+00:00",
+    "milestone": 20
+  },
   "SNXX": {
     "notifiedAt": "2026-11-11T13:42:09.3109625+00:00",
     "milestone": 20
@@ -73,6 +89,10 @@
   },
   "VCX": {
     "notifiedAt": "2026-11-11T15:22:14.1776732+00:00",
+    "milestone": 20
+  },
+  "ZHONGJI": {
+    "notifiedAt": "2026-11-11T15:52:16.5245298+00:00",
     "milestone": 20
   }
 }
