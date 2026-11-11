@@ -1,4 +1,8 @@
 {
+  "AAOI": {
+    "notifiedAt": "2026-11-11T16:51:56.7046919+00:00",
+    "milestone": 20
+  },
   "AAOX": {
     "notifiedAt": "2026-11-11T15:42:20.239464+00:00",
     "milestone": 20
@@ -23,8 +27,16 @@
     "notifiedAt": "2026-11-11T13:42:09.3109625+00:00",
     "milestone": 20
   },
+  "CSOPSAMSUNG2L": {
+    "notifiedAt": "2026-11-11T16:51:56.7046919+00:00",
+    "milestone": 20
+  },
   "CSOPSKHYNIX2L": {
     "notifiedAt": "2026-11-11T13:42:09.3109625+00:00",
+    "milestone": 20
+  },
+  "DJT": {
+    "notifiedAt": "2026-11-11T16:51:56.7046919+00:00",
     "milestone": 20
   },
   "FRMI": {
@@ -89,6 +101,10 @@
   },
   "SMCX": {
     "notifiedAt": "2026-11-11T16:04:08.5487858+00:00",
+    "milestone": 20
+  },
+  "SNDK": {
+    "notifiedAt": "2026-11-11T16:51:56.7046919+00:00",
     "milestone": 20
   },
   "SNXX": {
