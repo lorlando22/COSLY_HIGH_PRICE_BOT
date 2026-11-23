@@ -3,6 +3,10 @@
     "notifiedAt": "2026-11-23T15:24:11.2749596+00:00",
     "milestone": 20
   },
+  "AXTI": {
+    "notifiedAt": "2026-11-23T23:04:05.5705332+00:00",
+    "milestone": 20
+  },
   "CRCD": {
     "notifiedAt": "2026-11-23T18:17:55.2779866+00:00",
     "milestone": 20
@@ -77,6 +81,10 @@
   },
   "UNITREE": {
     "notifiedAt": "2026-11-23T17:52:02.3376088+00:00",
+    "milestone": 20
+  },
+  "ZHONGJI": {
+    "notifiedAt": "2026-11-23T23:04:05.5705332+00:00",
     "milestone": 20
   }
 }
