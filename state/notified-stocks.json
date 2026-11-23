@@ -23,10 +23,6 @@
     "notifiedAt": "2026-11-23T14:26:30.7646225+00:00",
     "milestone": 20
   },
-  "CRWV": {
-    "notifiedAt": "2026-11-23T14:04:12.2117203+00:00",
-    "milestone": 20
-  },
   "CSOPSAMSUNG2L": {
     "notifiedAt": "2026-11-23T14:34:17.8670666+00:00",
     "milestone": 20
@@ -83,10 +79,6 @@
     "notifiedAt": "2026-11-23T15:32:33.7044894+00:00",
     "milestone": 20
   },
-  "NBIS": {
-    "notifiedAt": "2026-11-23T14:04:12.2117203+00:00",
-    "milestone": 20
-  },
   "NVD": {
     "notifiedAt": "2026-11-23T14:34:17.8670666+00:00",
     "milestone": 20
@@ -119,15 +111,7 @@
     "notifiedAt": "2026-11-23T14:51:43.6435004+00:00",
     "milestone": 20
   },
-  "SNXX": {
-    "notifiedAt": "2026-11-23T14:04:12.2117203+00:00",
-    "milestone": 20
-  },
   "SOXL": {
-    "notifiedAt": "2026-11-23T14:04:12.2117203+00:00",
-    "milestone": 20
-  },
-  "UMC": {
     "notifiedAt": "2026-11-23T14:04:12.2117203+00:00",
     "milestone": 20
   },
