@@ -3,6 +3,14 @@
     "notifiedAt": "2026-11-23T14:18:06.5580899+00:00",
     "milestone": 20
   },
+  "AXTI": {
+    "notifiedAt": "2026-11-23T14:26:30.7646225+00:00",
+    "milestone": 20
+  },
+  "CRDO": {
+    "notifiedAt": "2026-11-23T14:26:30.7646225+00:00",
+    "milestone": 20
+  },
   "CRWV": {
     "notifiedAt": "2026-11-23T14:04:12.2117203+00:00",
     "milestone": 20
@@ -11,8 +19,24 @@
     "notifiedAt": "2026-11-23T14:18:06.5580899+00:00",
     "milestone": 20
   },
+  "DELL": {
+    "notifiedAt": "2026-11-23T14:26:30.7646225+00:00",
+    "milestone": 20
+  },
+  "HPE": {
+    "notifiedAt": "2026-11-23T14:26:30.7646225+00:00",
+    "milestone": 20
+  },
+  "IREN": {
+    "notifiedAt": "2026-11-23T14:26:30.7646225+00:00",
+    "milestone": 20
+  },
   "KORU": {
     "notifiedAt": "2026-11-23T14:18:06.5580899+00:00",
+    "milestone": 20
+  },
+  "MSTU": {
+    "notifiedAt": "2026-11-23T14:26:30.7646225+00:00",
     "milestone": 20
   },
   "MUU": {
@@ -61,6 +85,14 @@
   },
   "UNITREE": {
     "notifiedAt": "2026-11-23T09:05:51.1409232+00:00",
+    "milestone": 20
+  },
+  "USDE": {
+    "notifiedAt": "2026-11-23T14:26:30.7646225+00:00",
+    "milestone": 20
+  },
+  "USDEX": {
+    "notifiedAt": "2026-11-23T14:26:30.7646225+00:00",
     "milestone": 20
   },
   "ZHIPU": {
