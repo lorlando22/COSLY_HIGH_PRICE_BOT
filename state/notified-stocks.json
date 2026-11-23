@@ -1,8 +1,4 @@
 {
-  "AAOI": {
-    "notifiedAt": "2026-11-23T14:18:06.5580899+00:00",
-    "milestone": 20
-  },
   "AGPU": {
     "notifiedAt": "2026-11-23T15:24:11.2749596+00:00",
     "milestone": 20
@@ -125,10 +121,6 @@
   },
   "USDEX": {
     "notifiedAt": "2026-11-23T14:26:30.7646225+00:00",
-    "milestone": 20
-  },
-  "ZHIPU": {
-    "notifiedAt": "2026-11-23T14:18:06.5580899+00:00",
     "milestone": 20
   },
   "ZHONGJI": {
