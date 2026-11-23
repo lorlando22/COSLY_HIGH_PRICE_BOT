@@ -15,20 +15,12 @@
     "notifiedAt": "2026-11-23T18:17:55.2779866+00:00",
     "milestone": 20
   },
-  "CRDO": {
-    "notifiedAt": "2026-11-23T14:26:30.7646225+00:00",
-    "milestone": 20
-  },
   "CSOPSAMSUNG2L": {
     "notifiedAt": "2026-11-23T14:34:17.8670666+00:00",
     "milestone": 20
   },
   "CSOPSKHYNIX2L": {
     "notifiedAt": "2026-11-23T14:18:06.5580899+00:00",
-    "milestone": 20
-  },
-  "DELL": {
-    "notifiedAt": "2026-11-23T14:26:30.7646225+00:00",
     "milestone": 20
   },
   "FLNC": {
@@ -39,24 +31,12 @@
     "notifiedAt": "2026-11-23T15:24:11.2749596+00:00",
     "milestone": 20
   },
-  "HPE": {
-    "notifiedAt": "2026-11-23T14:26:30.7646225+00:00",
-    "milestone": 20
-  },
   "INTW": {
     "notifiedAt": "2026-11-23T20:42:15.4694095+00:00",
     "milestone": 20
   },
-  "IREN": {
-    "notifiedAt": "2026-11-23T14:26:30.7646225+00:00",
-    "milestone": 20
-  },
   "KORU": {
     "notifiedAt": "2026-11-23T14:18:06.5580899+00:00",
-    "milestone": 20
-  },
-  "MSTU": {
-    "notifiedAt": "2026-11-23T14:26:30.7646225+00:00",
     "milestone": 20
   },
   "MSTZ": {
@@ -113,14 +93,6 @@
   },
   "UNITREE": {
     "notifiedAt": "2026-11-23T17:52:02.3376088+00:00",
-    "milestone": 20
-  },
-  "USDE": {
-    "notifiedAt": "2026-11-23T14:26:30.7646225+00:00",
-    "milestone": 20
-  },
-  "USDEX": {
-    "notifiedAt": "2026-11-23T14:26:30.7646225+00:00",
     "milestone": 20
   },
   "ZHONGJI": {
