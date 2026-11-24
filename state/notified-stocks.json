@@ -1,14 +1,6 @@
 {
-  "AGPU": {
-    "notifiedAt": "2026-11-24T01:03:55.2025641+00:00",
-    "milestone": 20
-  },
   "CSOPSAMSUNG2L": {
     "notifiedAt": "2026-11-24T02:33:36.6181746+00:00",
-    "milestone": 20
-  },
-  "FLNC": {
-    "notifiedAt": "2026-11-23T22:03:26.2328676+00:00",
     "milestone": 20
   },
   "IREN": {
@@ -17,10 +9,6 @@
   },
   "KORU": {
     "notifiedAt": "2026-11-24T01:17:08.5886723+00:00",
-    "milestone": 20
-  },
-  "MINIMAX": {
-    "notifiedAt": "2026-11-24T00:55:17.8409525+00:00",
     "milestone": 20
   },
   "MUU": {
@@ -33,14 +21,6 @@
   },
   "NVDL": {
     "notifiedAt": "2026-11-23T14:04:12.2117203+00:00",
-    "milestone": 20
-  },
-  "RAM": {
-    "notifiedAt": "2026-11-24T00:55:17.8409525+00:00",
-    "milestone": 20
-  },
-  "RAM1": {
-    "notifiedAt": "2026-11-24T00:55:17.8409525+00:00",
     "milestone": 20
   },
   "SOXL": {
